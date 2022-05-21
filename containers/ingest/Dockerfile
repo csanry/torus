@@ -12,6 +12,7 @@ WORKDIR /usr/
 
 COPY .. src/
 
+RUN conda create -y -n mle --file requirements.txt -c conda-forge
 # ENTRYPOINT ["mysql"]
 
 
