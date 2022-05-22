@@ -56,3 +56,8 @@ endif
 ## Setup packages
 pkg: 
 	pip install -e .
+
+env: 
+	docker login
+	docker build -t basemle:latest .
+	docker run -it --rm --name lab -p 8888:8888 -v $(PROJECT_DIR):/project/ basemle:latest
