@@ -1,22 +1,26 @@
-FROM python:3.9.12-bullseye
+FROM python:3.9-bullseye
 
 # expose port 9000
-EXPOSE 9000
+EXPOSE 8888
 
 # set the working directory 
-WORKDIR /usr/
+WORKDIR /project
 
 # copy files 
-COPY . .
-
+COPY . /project/
 
 # install requirements file
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip &&\ 
+    pip install --no-cache-dir -r base_requirements.txt &&\
+    useradd -ms /bin/bash lab &&\
+    cd /project &&\
+    make pkg
 
+USER lab
 
-# set shell to bash
+# # set shell to bash
 # SHELL ["bin/bash", "-c"]
 
 # to update
-CMD ["python3", "src/app/testing_container.py"]
+CMD ["jupyter-lab","--ip=0.0.0.0","--no-browser","--allow-root"]
 
