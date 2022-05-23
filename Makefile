@@ -57,7 +57,13 @@ endif
 pkg: 
 	pip install -e .
 
+
+build_docker: 
+	docker login
+	docker build -t csanry/basemle:latest .
+	docker push csanry/basemle:latest
+
 env: 
 	docker login
-	docker build -t basemle:latest .
-	docker run -it --rm --name lab -p 8888:8888 -v $(PROJECT_DIR):/project/ basemle:latest
+	docker pull csanry/basemle:latest
+	docker run -it --rm --name lab -p 8888:8888 -v $(PROJECT_DIR):/project/ csanry/basemle:latest
