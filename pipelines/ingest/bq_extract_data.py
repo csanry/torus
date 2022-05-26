@@ -5,7 +5,7 @@ import subprocess
 
 from google.cloud import bigquery, storage
 from google.cloud.exceptions import GoogleCloudError
-from pipelines.kfp.dependencies import LOGGING_CONF
+from pipelines.kfp.dependencies import LOGGING_CONF, PROJECT_ID
 from pipelines.kfp.helpers import create_bucket, setup_credentials
 
 
@@ -13,7 +13,7 @@ def bq_extract_data(
     source_project_id: str = None,
     source_dataset_id: str = None,
     source_table_id: str = None,
-    dest_project_id: str = None,
+    dest_project_id: str = PROJECT_ID,
     dest_bucket: str = None,
     dest_file: str = None,
     dataset_location: str = None,
@@ -24,17 +24,6 @@ def bq_extract_data(
 
     logging.config.fileConfig(LOGGING_CONF)
     logger = logging.getLogger("root")
-
-    if (
-        dest_project_id == ""
-        or dest_project_id is None
-        or dest_project_id == "[your-project-id]"
-    ):
-        dest_project_id = subprocess.check_output(
-            'gcloud config list --format "value(core.project)" 2>/dev/null',
-            shell=True,
-            text=True,
-        )
 
     storage_client = storage.Client(project=dest_project_id)
 
