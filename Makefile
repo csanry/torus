@@ -24,6 +24,7 @@ endif
 clean:
 	find . -type f -name "*.py[co]" -delete
 	find . -type d -name "__pycache__" -delete
+	find . -type d -name ".ipynb_checkpoints" -delete
 
 ## Download Data from S3
 sync_data_from_s3:
