@@ -1,14 +1,13 @@
-import logging
-import logging.config
-import os
-
-from google.cloud import bigquery
-from google.cloud.exceptions import GoogleCloudError
 from kfp.v2.dsl import component
-from pipelines.kfp.dependencies import LOGGING_CONF, PROJECT_ID
-from pipelines.kfp.helpers import create_bucket, setup_credentials
+from pipelines.kfp.dependencies import (
+    GOOGLE_CLOUD_BIGQUERY,
+    LOGGING_CONF,
+    PROJECT_ID,
+    PYTHON37,
+)
 
 
+@component(base_image=PYTHON37, packages_to_install=[GOOGLE_CLOUD_BIGQUERY])
 def bq_query_to_table(
     query: str,
     bq_client_project_id: str = None,
@@ -18,6 +17,14 @@ def bq_query_to_table(
     dataset_location: str = "US",
     query_job_config: dict = None,
 ) -> None:
+
+    import logging
+    import logging.config
+    import os
+
+    from google.cloud import bigquery
+    from google.cloud.exceptions import GoogleCloudError
+    from pipelines.kfp.helpers import create_bucket, setup_credentials
 
     setup_credentials()
 

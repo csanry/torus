@@ -1,15 +1,13 @@
-import logging
-import logging.config
-import os
-import subprocess
-
-from google.cloud import bigquery, storage
-from google.cloud.exceptions import GoogleCloudError
 from kfp.v2.dsl import component
-from pipelines.kfp.dependencies import LOGGING_CONF, PROJECT_ID
-from pipelines.kfp.helpers import create_bucket, setup_credentials
+from pipelines.kfp.dependencies import (
+    GOOGLE_CLOUD_BIGQUERY,
+    LOGGING_CONF,
+    PROJECT_ID,
+    PYTHON37,
+)
 
 
+@component(base_image=PYTHON37, packages_to_install=[GOOGLE_CLOUD_BIGQUERY])
 def bq_extract_data(
     source_project_id: str = None,
     source_dataset_id: str = None,
@@ -20,6 +18,15 @@ def bq_extract_data(
     dataset_location: str = None,
     extract_job_config: dict = None,
 ) -> None:
+
+    import logging
+    import logging.config
+    import os
+    import subprocess
+
+    from google.cloud import bigquery, storage
+    from google.cloud.exceptions import GoogleCloudError
+    from pipelines.kfp.helpers import create_bucket, setup_credentials
 
     setup_credentials()
 
@@ -68,14 +75,14 @@ def bq_extract_data(
 
 
 # test
-dd, duri = bq_extract_data(
-    source_project_id="pacific-torus-347809",
-    source_dataset_id="dwh_pacific_torus",
-    source_table_id="credit_card_default",
-    destination_project_id="pacific-torus-347809",
-    destination_bucket="mle-dwh-torus",
-    destination_file="raw/credit_cards.csv",
-    dataset_location="US",
-)
+# dd, duri = bq_extract_data(
+#     source_project_id="pacific-torus-347809",
+#     source_dataset_id="dwh_pacific_torus",
+#     source_table_id="credit_card_default",
+#     destination_project_id="pacific-torus-347809",
+#     destination_bucket="mle-dwh-torus",
+#     destination_file="raw/credit_cards.csv",
+#     dataset_location="US",
+# )
 
-print(dd, duri)
+# print(dd, duri)
