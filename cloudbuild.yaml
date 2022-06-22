@@ -11,4 +11,4 @@ steps:
   args:
   - "-c"
   - |
-    echo "Docker Container Built And Pushed"   #Test and debug
+    echo "Docker Container Built And Pushed"   #Test 
