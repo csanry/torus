@@ -1,2 +1,12 @@
-# sample requirements -- to update
-numpy
+# -----------------------
+# Base image requirements 
+# -----------------------
+
+google-cloud-bigquery==2.30.0
+google-cloud-storage==1.42.2
+google-cloud-aiplatform==1.10.0
+google-api-core==2.8.0
+google-auth==1.35.0
+kfp==1.8.12
+numpy==1.21
+pandas==1.4.2
