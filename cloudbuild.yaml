@@ -1,19 +1,14 @@
-# sample cloudbuild.yaml
-
-# This sample build has exactly one step: build a new container image using this
-# repository as source. Here we use the 'docker' image to build the image and
-# tag it with the name of the image.
 steps:
-- name: 'docker'
-  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/helloworld-image', '.' ]
-
-
-# By default, all built docker images will be lost once the build is complete.
-# Rather than writing a build step to push this image, you can simply list the
-# image below and it will automatically be uploaded to Google Cloud Container
-# Registry.
-images:
-- 'gcr.io/$PROJECT_ID/helloworld-image'
-
-# You can organize your builds with tags
-tags: ['gcp-cloud-build-sample-build']
+- name: 'gcr.io/cloud-builders/docker'
+  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/mle-fp/base:latest', '.' ]   #build the docker file found in the current directory
+  timeout: 180s
+  id: "Build Base Image"
+- name: 'gcr.io/cloud-builders/docker'
+  args: [ 'push', 'gcr.io/$PROJECT_ID/mle-fp/base:latest']  
+  timeout: 180s
+- name: 'gcr.io/cloud-builders/gcloud'
+  entrypoint: "bash"
+  args:
+  - "-c"
+  - |
+    echo "Docker Container Built And Pushed"  #Test and debug
