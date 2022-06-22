@@ -8,6 +8,10 @@ from google.cloud.exceptions import GoogleCloudError
 from kfp.v2.dsl import component
 
 
+def setup_credentials() -> None:
+
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "pacific-torus.json"
+
 def create_bucket(
     bucket_name: str,
     storage_class: str = "STANDARD",
@@ -47,7 +51,7 @@ def bq_extract_data(
     extract_job_config: dict = None,
 ) -> None:
 
-    # setup_credentials()
+    setup_credentials()
 
     # logging.config.fileConfig(LOGGING_CONF)
     logger = logging.getLogger("root")
@@ -61,7 +65,7 @@ def bq_extract_data(
     full_table_id = f"{source_project_id}.{source_dataset_id}.{source_table_id}"
     table = bigquery.table.Table(table_ref=full_table_id)
 
-    if extract_job_config is None:
+    if extract_job_config == "None" or extract_job_config is None:
         extract_job_config = {}
     if destination_file.endswith(".json"):
         extract_job_config = {"destination_format": "NEWLINE_DELIMITED_JSON"}
@@ -119,7 +123,7 @@ def main():
         source_project_id=args.source_project_id,
         source_dataset_id=args.source_dataset_id,
         source_table_id=args.source_table_id,
-        destination_project_id=args.destination_table_id,
+        destination_project_id=args.destination_project_id,
         destination_bucket=args.destination_bucket,
         destination_file=args.destination_file,
         dataset_location=args.dataset_location,
