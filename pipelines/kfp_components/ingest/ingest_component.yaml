@@ -1,0 +1,47 @@
+name: ingest 
+description: placeholder
+inputs:
+  - name: source_project_id
+    description: 'To fill'
+    type: String
+  - name: source_dataset_id
+    description: 'To fill'
+    type: String
+  - name: source_table_id
+    description: 'To fill'
+    type: String
+  - name: destination_project_id
+    description: 'To fill'
+    type: String
+  - name: destination_bucket
+    description: 'To fill'
+    type: String
+  - name: destination_file
+    description: 'To fill'
+    type: String
+  - name: dataset_location
+    description: 'To fill'
+    type: String
+  - name: extract_job_config
+    description: 'To fill'
+    type: String
+outputs:
+  - name: gcs_path
+    description: 'To fill'
+    type: GCSPath
+implementation:
+  container:
+    image: gcr.io/pacific-torus-347809/mle-fp/ingest:latest
+    command: [
+      python, /project/bq_extract_data.py,
+      --source_project_id, {inputValue: source_project_id},
+      --source_dataset_id, {inputValue: source_dataset_id},
+      --source_table_id, {inputValue: source_table_id},
+      --destination_project_id, {inputValue: destination_project_id},
+      --destination_bucket, {inputValue: destination_bucket},
+      --destination_file, {inputValue: destination_file},
+      --dataset_location, {inputValue: dataset_location},
+      --extract_job_config, {inputValue: extract_job_config}, 
+    ]
+    fileOutputs:
+      gcs_path: /output.txt
