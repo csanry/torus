@@ -1,0 +1,50 @@
+name: Train test split data
+inputs:
+- {name: input_file, type: <kfp.v2.components.types.type_annotations.InputPath object
+    at 0x7faad2278d00>}
+- {name: output_bucket, type: String}
+outputs:
+- {name: train_data, type: Artifact}
+- {name: test_data, type: Artifact}
+implementation:
+  container:
+    image: gcr.io/pacific-torus-347809/mle-fp/base:latest
+    command:
+    - sh
+    - -c
+    - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
+      'fsspec' 'gcsfs' 'sklearn' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip
+      install --quiet --no-warn-script-location 'fsspec' 'gcsfs' 'sklearn' --user)
+      && "$0" "$@"
+    - sh
+    - -ec
+    - |
+      program_path=$(mktemp)
+      printf "%s" "$0" > "$program_path"
+      python3 -u "$program_path" "$@"
+    - "from kfp.v2.dsl import Artifact, Dataset, InputPath, OutputPath\n\ndef train_test_split_data(\n\
+      \    input_file,\n    output_bucket,\n):\n\n    import pandas as pd\n    from\
+      \ sklearn.model_selection import train_test_split\n\n    df = pd.read_csv(input_file)\n\
+      \    train, test = train_test_split(df, test_size=0.2, random_state=2022)\n\n\
+      \    output_train_path = f\"gs://mle-dwh-torus/{output_bucket}/train.csv\"\n\
+      \    output_test_path = f\"gs://mle-dwh-torus/{output_bucket}/test.csv\" \n\n\
+      \    train.to_csv(output_train_path)\n    test.to_csv(output_test_path)\n\n\
+      \    return (train, test)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Train\
+      \ test split data', description='')\n_parser.add_argument(\"--input-file\",\
+      \ dest=\"input_file\", type=str, required=True, default=argparse.SUPPRESS)\n\
+      _parser.add_argument(\"--output-bucket\", dest=\"output_bucket\", type=str,\
+      \ required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\"\
+      , dest=\"_output_paths\", type=str, nargs=2)\n_parsed_args = vars(_parser.parse_args())\n\
+      _output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = train_test_split_data(**_parsed_args)\n\
+      \n_output_serializers = [\n    str,\n    str,\n\n]\n\nimport os\nfor idx, output_file\
+      \ in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n\
+      \    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n\
+      \        f.write(_output_serializers[idx](_outputs[idx]))\n"
+    args:
+    - --input-file
+    - {inputValue: input_file}
+    - --output-bucket
+    - {inputValue: output_bucket}
+    - '----output-paths'
+    - {outputPath: train_data}
+    - {outputPath: test_data}
