@@ -58,14 +58,14 @@ def xgboost_test_pipeline(
         gcs_temp_location='gs://mle-dwh-torus/tfdv_expers/tmp',
         gcs_staging_location='gs://mle-dwh-torus/tfdv_expers',
         whl_location="tensorflow_data_validation-0.26.0-cp37-cp37m-manylinux2010_x86_64.whl"
-    )
+    ).after(basic_preprocessing)
 
     # compare generated training data stats with stats from a previous version
     # of the training data set.
-    # tfdv_drift = tfdv_drift_op(
-    #     stats_older_path="gs://mle-dwh-torus/stats/evaltrain1.pb", 
-    #     tfdv2.outputs['stats_path']
-    # )
+    tfdv_drift = tfdv_drift_op(
+        stats_older_path="gs://mle-dwh-torus/stats/evaltest.pb", 
+        stats_new_path=tfdv_step.outputs['stats_path']
+    )
 
 
 
