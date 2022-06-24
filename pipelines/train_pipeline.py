@@ -4,6 +4,7 @@ from typing import NamedTuple
 import google.cloud.aiplatform as aip
 from kfp.v2 import compiler, dsl
 from kfp.v2.dsl import Artifact, Dataset, Input, Output, OutputPath, component
+from sqlalchemy import outparam
 
 import kfp
 
@@ -12,7 +13,11 @@ PIPELINE_ROOT = "{}/pipeline/".format("gs://mle-dwh-torus")
 aip.init(project="pacific-torus-347809", staging_bucket="gs://mle-dwh-torus")
 
 ingest_op = kfp.components.load_component_from_file("./kfp_components/ingest/ingest_component.yaml")
-# tfdv_op = kfp.components.load_component_from_file("tfdv_component.yaml")
+tfdv_op = kfp.components.load_component_from_file("./kfp_components/preprocessing/tfdv_generate_statistics_component.yaml")
+
+
+tfdv_drift_op = kfp.components.load_component_from_file("./kfp_components/preprocessing/tfdv_detect_drift_component.yaml")
+
 
 basic_preprocessing_op = kfp.components.load_component_from_file("./kfp_components/preprocessing/basic_preprocessing_component.yaml")
 train_test_split_data_op = kfp.components.load_component_from_file("./kfp_components/training/train_test_split_data_component.yaml")
@@ -42,6 +47,27 @@ def xgboost_test_pipeline(
         output_bucket="int",
         output_file="ccd2.csv"
     )
+
+    tfdv_step = tfdv_op(
+        input_data="gs://mle-dwh-torus/int/ccd2.csv", # basic_preprocessing.output,
+        output_path="gs://mle-dwh-torus/tfdv_expers/eval/evaltest.pb",
+        job_name='test-1',
+        use_dataflow="False",
+        project_id="pacific-torus-347809",
+        region="asia-southeast1-c", # us-central1
+        gcs_temp_location='gs://mle-dwh-torus/tfdv_expers/tmp',
+        gcs_staging_location='gs://mle-dwh-torus/tfdv_expers',
+        whl_location="tensorflow_data_validation-0.26.0-cp37-cp37m-manylinux2010_x86_64.whl"
+    )
+
+    # compare generated training data stats with stats from a previous version
+    # of the training data set.
+    # tfdv_drift = tfdv_drift_op(
+    #     stats_older_path="gs://mle-dwh-torus/stats/evaltrain1.pb", 
+    #     tfdv2.outputs['stats_path']
+    # )
+
+
 
     train_test_split_data = train_test_split_data_op(
         input=basic_preprocessing.output,

@@ -1,0 +1,94 @@
+name: Tfdv generate statistics
+inputs:
+- {name: input_data, type: String}
+- {name: output_path, type: String}
+- {name: job_name, type: String}
+- {name: use_dataflow, type: String}
+- {name: project_id, type: String}
+- {name: region, type: String}
+- {name: gcs_temp_location, type: String}
+- {name: gcs_staging_location, type: String}
+- {name: whl_location, type: String, default: '', optional: true}
+outputs:
+- {name: stats_path, type: String}
+implementation:
+  container:
+    image: gcr.io/pacific-torus-347809/mle-fp/preprocessing:latest
+    command:
+    - sh
+    - -ec
+    - |
+      program_path=$(mktemp)
+      printf "%s" "$0" > "$program_path"
+      python3 -u "$program_path" "$@"
+    - "def tfdv_generate_statistics(\n    input_data, \n    output_path, \n    job_name,\
+      \ \n    use_dataflow,\n    project_id, \n    region, \n    gcs_temp_location,\
+      \ \n    gcs_staging_location,\n    whl_location = '', \n):\n\n    import logging\n\
+      \    import os\n    import time\n\n    import tensorflow_data_validation as\
+      \ tfdv\n    import tensorflow_data_validation.statistics.stats_impl\n    from\
+      \ apache_beam.options.pipeline_options import (GoogleCloudOptions,\n       \
+      \                                               PipelineOptions,\n         \
+      \                                             SetupOptions,\n              \
+      \                                        StandardOptions)\n\n    os.environ[\"\
+      GOOGLE_APPLICATION_CREDENTIALS\"] = \"pacific-torus.json\"\n\n    logging.getLogger().setLevel(logging.INFO)\n\
+      \    logging.info(\"output path: %s\", output_path)\n    logging.info(\"Building\
+      \ pipeline options\")\n\n    # Create and set your PipelineOptions.\n    options\
+      \ = PipelineOptions()\n\n    if use_dataflow == 'true':\n        logging.info(\"\
+      using Dataflow\")\n        if not whl_location:\n            logging.warning('tfdv\
+      \ whl file required with dataflow runner.')\n            exit(1)\n        google_cloud_options\
+      \ = options.view_as(GoogleCloudOptions)\n        google_cloud_options.project\
+      \ = project_id\n        google_cloud_options.job_name = '{}-{}'.format(job_name,\
+      \ str(int(time.time())))\n        google_cloud_options.staging_location = gcs_staging_location\n\
+      \        google_cloud_options.temp_location = gcs_temp_location\n        google_cloud_options.region\
+      \ = region\n        options.view_as(StandardOptions).runner = 'DataflowRunner'\n\
+      \n        setup_options = options.view_as(SetupOptions)\n        setup_options.extra_packages\
+      \ = [whl_location]\n\n    tfdv.generate_statistics_from_csv(\n        data_location=input_data,\
+      \ \n        output_path=output_path,\n        pipeline_options=options)\n\n\
+      \    return (output_path, )\n\ndef _serialize_str(str_value: str) -> str:\n\
+      \    if not isinstance(str_value, str):\n        raise TypeError('Value \"{}\"\
+      \ has type \"{}\" instead of str.'.format(\n            str(str_value), str(type(str_value))))\n\
+      \    return str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Tfdv\
+      \ generate statistics', description='')\n_parser.add_argument(\"--input-data\"\
+      , dest=\"input_data\", type=str, required=True, default=argparse.SUPPRESS)\n\
+      _parser.add_argument(\"--output-path\", dest=\"output_path\", type=str, required=True,\
+      \ default=argparse.SUPPRESS)\n_parser.add_argument(\"--job-name\", dest=\"job_name\"\
+      , type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
+      --use-dataflow\", dest=\"use_dataflow\", type=str, required=True, default=argparse.SUPPRESS)\n\
+      _parser.add_argument(\"--project-id\", dest=\"project_id\", type=str, required=True,\
+      \ default=argparse.SUPPRESS)\n_parser.add_argument(\"--region\", dest=\"region\"\
+      , type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
+      --gcs-temp-location\", dest=\"gcs_temp_location\", type=str, required=True,\
+      \ default=argparse.SUPPRESS)\n_parser.add_argument(\"--gcs-staging-location\"\
+      , dest=\"gcs_staging_location\", type=str, required=True, default=argparse.SUPPRESS)\n\
+      _parser.add_argument(\"--whl-location\", dest=\"whl_location\", type=str, required=False,\
+      \ default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\", dest=\"\
+      _output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n\
+      _output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = tfdv_generate_statistics(**_parsed_args)\n\
+      \n_output_serializers = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file\
+      \ in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n\
+      \    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n\
+      \        f.write(_output_serializers[idx](_outputs[idx]))\n"
+    args:
+    - --input-data
+    - {inputValue: input_data}
+    - --output-path
+    - {inputValue: output_path}
+    - --job-name
+    - {inputValue: job_name}
+    - --use-dataflow
+    - {inputValue: use_dataflow}
+    - --project-id
+    - {inputValue: project_id}
+    - --region
+    - {inputValue: region}
+    - --gcs-temp-location
+    - {inputValue: gcs_temp_location}
+    - --gcs-staging-location
+    - {inputValue: gcs_staging_location}
+    - if:
+        cond: {isPresent: whl_location}
+        then:
+        - --whl-location
+        - {inputValue: whl_location}
+    - '----output-paths'
+    - {outputPath: stats_path}
