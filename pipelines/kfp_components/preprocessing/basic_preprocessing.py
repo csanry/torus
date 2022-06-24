@@ -14,11 +14,12 @@ def basic_preprocessing(
 
     df = pd.read_csv(input_file)
 
-    df.columns = [col.lower().strip() for col in df.columns] 
+    df.columns = [col.lower().rstrip('_') for col in df.columns] 
 
     df.dropna(inplace=True)
     
-    df.rename({'default_payment_next_month': "default"}, inplace=True)
+    df.dropna()
+    df['target'] = df['default'].apply(lambda x: 1 if x == 'Y' else 0)
     df.loc[df['education'] == '0', 'education'] = 'Unknown'
     df.loc[df['marriage'] == '0', 'marriage'] = 'Other'
     sex = pd.get_dummies(df.sex, prefix='gender')
@@ -26,7 +27,7 @@ def basic_preprocessing(
     marriage = pd.get_dummies(df.marriage, prefix='mstatus')
     frames = [df, sex, education, marriage]
     final = reduce(lambda l, r: pd.concat([l, r], axis=1), frames)
-    final.drop(['default_payment_next_month', 'sex', 'education', 'marriage'], axis=1, inplace=True)
+    final.drop(['id', 'default', 'sex', 'education', 'marriage'], axis = 1, inplace = True)
 
     output_path = f"gs://mle-dwh-torus/{output_bucket}/{output_file}" 
     final.to_csv(output_path, index=False)
