@@ -1,9 +1,10 @@
 from typing import NamedTuple
 
-from kfp.v2.dsl import Artifact, InputPath
+from kfp.components import InputPath
+from kfp.v2.dsl import Artifact
 
 
-def train_test_split_data(
+def train_test_split(
     input_file: InputPath("CSV"),
     output_bucket: str,
 ) -> NamedTuple("outputs", [
@@ -23,17 +24,20 @@ def train_test_split_data(
     train.to_csv(output_train_path)
     test.to_csv(output_test_path)
 
-    return (train, test)
+    from collections import namedtuple
+
+    results = namedtuple("outputs", ["train_data", "test_data"])
+    
+    return results(train, test)
 
 
 if __name__ == "__main__": 
 
     import kfp
 
-    kfp.components.func_to_container_op(
-        train_test_split_data,
-        extra_code="from kfp.v2.dsl import Artifact, Dataset, InputPath, OutputPath",
-        output_component_file="train_test_split_data_component.yaml", 
-        base_image="gcr.io/pacific-torus-347809/mle-fp/base:latest",
-        packages_to_install=["fsspec", "gcsfs", "sklearn"]
-    )
+    kfp.components.create_component_from_func(
+        train_test_split,
+        output_component_file='train_test_split_data_component.yaml', 
+        base_image='gcr.io/pacific-torus-347809/mle-fp/base:latest',
+        packages_to_install=["fsspec", "gcsfs", "sklearn"])
+        # extra_code="from kfp.v2.dsl import Dataset, InputPath",
