@@ -37,12 +37,10 @@ def predict(
             )
 
     endpoint = create_endpoint()
-    output_train_path = f"gs://mle-dwh-torus/{output_bucket}/train.csv"
-    output_test_path = f"gs://mle-dwh-torus/{output_bucket}/test.csv"
 
     model_upload = aiplatform.Model.upload(
         display_name = DISPLAY_NAME,
-        artifact_uri = model.uri.replace("model", ""),
+        artifact_uri = model_input_file,
         serving_container_image_uri =  serving_container_image_uri,
         serving_container_health_route=f"/v1/models/{MODEL_NAME}",
         serving_container_predict_route=f"/v1/models/{MODEL_NAME}:predict",
