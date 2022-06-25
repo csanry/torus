@@ -13,7 +13,7 @@ outputs:
 - {name: stats_path, type: String}
 implementation:
   container:
-    image: gcr.io/pacific-torus-347809/mle-fp/preprocessing:latest
+    image: gcr.io/pacific-torus-347809/mle-fp/preprocessing:v1
     command:
     - sh
     - -ec
