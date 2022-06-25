@@ -52,6 +52,6 @@ import kfp
 kfp.components.create_component_from_func(
     tfdv_detect_drift,
     output_component_file='tfdv_detect_drift_component.yaml', 
-    base_image='gcr.io/pacific-torus-347809/mle-fp/preprocessing:latest')
+    base_image='gcr.io/pacific-torus-347809/mle-fp/preprocessing:v1')
 
 print("done")
