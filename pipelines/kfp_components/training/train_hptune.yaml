@@ -34,7 +34,6 @@ implementation:
 
           train_df = pd.read_csv(train_file)
 
-          print(train_df.head())
           PARAMS = {
               'n_estimators': [200, 300, 400],
               'learning_rate': [0.01, 0.1, 1]
@@ -53,19 +52,18 @@ implementation:
 
           random_search.fit(train_df.drop(columns=["target"]), train_df.target)
           best_params = random_search.best_params_
-          best_score = random_search.best_score_
+          # best_score = random_search.best_score_
 
           xg_model = XGBClassifier(**best_params)
           xg_model.fit(train_df.drop(columns=["target"]), train_df.target)
-          score = xg_model.score(train_df.drop(columns=["target"]), train_df.target)
+          # score = xg_model.score(train_df.drop(columns=["target"]), train_df.target)
 
           artifact_filename = 'model.pkl'
-          # Save model artifact to local filesystem (doesn't persist)
+
           local_path = artifact_filename
           with open(local_path, 'wb') as model_file:
               pickle.dump(xg_model, model_file)
-          # os.environ['AIP_MODEL_DIR'] = "gs://mle-dwh-torus/models/deployed/"
-          # Upload model artifact to Cloud Storage
+
           model_directory = "gs://mle-dwh-torus/models/deployed/"
           storage_path = os.path.join(model_directory, artifact_filename)
           blob = storage.blob.Blob.from_string(storage_path, client=storage.Client())
@@ -78,9 +76,9 @@ implementation:
           # with open(model_output_path, 'wb') as file:
           #     pickle.dump(xg_model, file)
           #
-          final_model.metadata["framework"] = "XGBoost"
-          final_model.metadata["train_score"] = float(score)
-          #
+          # final_model.metadata["framework"] = "XGBoost"
+          # final_model.metadata["train_score"] = float(score)
+
           from collections import namedtuple
 
           results = namedtuple("outputs", ["final_model", ])
