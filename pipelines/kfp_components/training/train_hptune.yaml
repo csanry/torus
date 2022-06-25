@@ -2,17 +2,17 @@ name: Train hptune
 inputs:
 - {name: train_file, type: String}
 outputs:
-- {name: final_model, type: Model}
+- {name: final_model, type: String}
 implementation:
   container:
-    image: gcr.io/pacific-torus-347809/mle-fp/base:v1
+    image: gcr.io/pacific-torus-347809/mle-fp/base:latest
     command:
     - sh
     - -c
     - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
-      'xgboost' 'gcsfs' 'json' 'sklearn' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3
-      -m pip install --quiet --no-warn-script-location 'xgboost' 'gcsfs' 'json' 'sklearn'
-      --user) && "$0" "$@"
+      'xgboost' 'gcsfs' 'sklearn' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip
+      install --quiet --no-warn-script-location 'xgboost' 'gcsfs' 'sklearn' --user)
+      && "$0" "$@"
     - sh
     - -ec
     - |
@@ -26,11 +26,15 @@ implementation:
       ):
 
           from xgboost import XGBClassifier
+          from google.cloud import storage
           from sklearn.model_selection import RandomizedSearchCV
           import pandas as pd
+          import os
+          import pickle
 
           train_df = pd.read_csv(train_file)
 
+          print(train_df.head())
           PARAMS = {
               'n_estimators': [200, 300, 400],
               'learning_rate': [0.01, 0.1, 1]
@@ -42,11 +46,12 @@ implementation:
           random_search = RandomizedSearchCV(XGB,
                                              param_distributions=PARAMS,
                                              n_iter=PARAM_COMB,
-                                             scoring='roc_auc',
+                                             scoring='accuracy',
                                              verbose=3,
                                              random_state=2022
                                              )
 
+          random_search.fit(train_df.drop(columns=["target"]), train_df.target)
           best_params = random_search.best_params_
           best_score = random_search.best_score_
 
@@ -54,17 +59,39 @@ implementation:
           xg_model.fit(train_df.drop(columns=["target"]), train_df.target)
           score = xg_model.score(train_df.drop(columns=["target"]), train_df.target)
 
-          model_output_path = f"gs://mle-dwh-torus/models/deployed/model.bst"
+          artifact_filename = 'model.pkl'
+          # Save model artifact to local filesystem (doesn't persist)
+          local_path = artifact_filename
+          with open(local_path, 'wb') as model_file:
+              pickle.dump(xg_model, model_file)
+          # os.environ['AIP_MODEL_DIR'] = "gs://mle-dwh-torus/models/deployed/"
+          # Upload model artifact to Cloud Storage
+          model_directory = "gs://mle-dwh-torus/models/deployed/"
+          storage_path = os.path.join(model_directory, artifact_filename)
+          blob = storage.blob.Blob.from_string(storage_path, client=storage.Client())
+          blob.upload_from_filename(local_path)
 
-          final_model = xg_model.save_model(model_output_path)
+          # model_output_path = "gs://mle-dwh-torus/models/deployed/model.pkl"
+          # # final_model = xg_model.save_model(model_output_path)
+          # #
+          # # file_name = final_model.path + f".pkl"
+          # with open(model_output_path, 'wb') as file:
+          #     pickle.dump(xg_model, file)
+          #
           final_model.metadata["framework"] = "XGBoost"
           final_model.metadata["train_score"] = float(score)
+          #
+          from collections import namedtuple
 
-          #from collections import namedtuple
+          results = namedtuple("outputs", ["final_model", ])
 
-          #results = namedtuple("outputs", ["final_model", ])
+          return results(storage_path,)
 
-          return (final_model,)
+      def _serialize_str(str_value: str) -> str:
+          if not isinstance(str_value, str):
+              raise TypeError('Value "{}" has type "{}" instead of str.'.format(
+                  str(str_value), str(type(str_value))))
+          return str_value
 
       import argparse
       _parser = argparse.ArgumentParser(prog='Train hptune', description='')
@@ -76,7 +103,7 @@ implementation:
       _outputs = train_hptune(**_parsed_args)
 
       _output_serializers = [
-          str,
+          _serialize_str,
 
       ]
 

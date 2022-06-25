@@ -7,13 +7,19 @@ from kfp.v2.dsl import Artifact, Model
 def train_hptune(
         train_file: str,
         #model_bucket: str,
-) -> NamedTuple("outputs", [("final_model", Model)]):
+) -> NamedTuple("outputs", [
+    ("final_model", str)
+]):
 
     from xgboost import XGBClassifier
+    from google.cloud import storage
     from sklearn.model_selection import RandomizedSearchCV
     import pandas as pd
+    import os
+    import pickle
     
     train_df = pd.read_csv(train_file)
+
 
     PARAMS = {
         'n_estimators': [200, 300, 400],
@@ -26,29 +32,45 @@ def train_hptune(
     random_search = RandomizedSearchCV(XGB,
                                        param_distributions=PARAMS,
                                        n_iter=PARAM_COMB,
-                                       scoring='roc_auc',
+                                       scoring='accuracy',
                                        verbose=3,
                                        random_state=2022
                                        )
 
+    random_search.fit(train_df.drop(columns=["target"]), train_df.target)
     best_params = random_search.best_params_
-    best_score = random_search.best_score_
+    # best_score = random_search.best_score_
 
     xg_model = XGBClassifier(**best_params)
     xg_model.fit(train_df.drop(columns=["target"]), train_df.target)
-    score = xg_model.score(train_df.drop(columns=["target"]), train_df.target)
+    # score = xg_model.score(train_df.drop(columns=["target"]), train_df.target)
 
-    model_output_path = f"gs://mle-dwh-torus/models/deployed/model.bst"
+    artifact_filename = 'model.pkl'
 
-    final_model = xg_model.save_model(model_output_path)
-    final_model.metadata["framework"] = "XGBoost"
-    final_model.metadata["train_score"] = float(score)
+    local_path = artifact_filename
+    with open(local_path, 'wb') as model_file:
+        pickle.dump(xg_model, model_file)
 
-    #from collections import namedtuple
+    model_directory = "gs://mle-dwh-torus/models/deployed/"
+    storage_path = os.path.join(model_directory, artifact_filename)
+    blob = storage.blob.Blob.from_string(storage_path, client=storage.Client())
+    blob.upload_from_filename(local_path)
 
-    #results = namedtuple("outputs", ["final_model", ])
+    # model_output_path = "gs://mle-dwh-torus/models/deployed/model.pkl"
+    # # final_model = xg_model.save_model(model_output_path)
+    # #
+    # # file_name = final_model.path + f".pkl"
+    # with open(model_output_path, 'wb') as file:
+    #     pickle.dump(xg_model, file)
+    #
+    # final_model.metadata["framework"] = "XGBoost"
+    # final_model.metadata["train_score"] = float(score)
 
-    return (final_model,)
+    from collections import namedtuple
+
+    results = namedtuple("outputs", ["final_model", ])
+
+    return results(storage_path,)
 
 
 if __name__ == "__main__":
@@ -58,6 +80,6 @@ if __name__ == "__main__":
         train_hptune,
         # extra_code="from kfp.v2.dsl import Artifact, Dataset, InputPath, OutputPath",
         output_component_file="train_hptune.yaml",
-        base_image="gcr.io/pacific-torus-347809/mle-fp/base:v1",
-        packages_to_install=["xgboost", "gcsfs", "json", "sklearn"]
+        base_image="gcr.io/pacific-torus-347809/mle-fp/base:latest",
+        packages_to_install=["xgboost", "gcsfs", "sklearn"]
     )
