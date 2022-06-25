@@ -1,16 +1,15 @@
 from typing import NamedTuple
 
 from kfp.components import InputPath
-from kfp.v2.dsl import Artifact
+from kfp.v2.dsl import Artifact, Model
 
 
 def predict(
-        model_input_file: InputPath("BST"),
+        model_input_file: InputPath(Model),
         serving_container_image_uri: str,
         project_id : str,
         region: str
 ) -> NamedTuple("outputs", [
-    # ("prediction", str),
     ("vertex_endpoint", Artifact),
     ("vertex_model", Model)
 ]):
@@ -35,6 +34,7 @@ def predict(
             endpoint = aiplatform.Endpoint.create(
                 display_name=ENDPOINT_NAME, project=project_id, location=region
             )
+        return endpoint
 
     endpoint = create_endpoint()
 
@@ -46,7 +46,7 @@ def predict(
         serving_container_predict_route=f"/v1/models/{MODEL_NAME}:predict",
         serving_container_environment_variables={
         "MODEL_NAME": MODEL_NAME,
-        }
+        })
 
     model_deploy = model_upload.deploy(
         machine_type="n1-standard-4",
@@ -55,7 +55,7 @@ def predict(
         deployed_model_display_name=DISPLAY_NAME,
     )
 
-    vertex_model.uri = model_deploy.resource_name
+    #vertex_model.uri = model_deploy.resource_name
     # from collections import namedtuple
     #
     # results = namedtuple("outputs", ["train_data", "test_data"])
