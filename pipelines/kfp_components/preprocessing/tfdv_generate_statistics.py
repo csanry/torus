@@ -16,7 +16,7 @@ def tfdv_generate_statistics(
     gcs_temp_location: str, 
     gcs_staging_location: str,
     whl_location: str = '', 
-) -> NamedTuple('Outputs', [('stats_path', str)]):
+) -> NamedTuple('outputs', [('stats_path', str)]):
 
     import logging
     import os
@@ -62,7 +62,11 @@ def tfdv_generate_statistics(
         output_path=output_path,
         pipeline_options=options)
 
-    return (output_path, )
+    from collections import namedtuple
+
+    results = namedtuple("outputs", ["stats_path"])
+
+    return results(output_path, )
 
 
 
@@ -71,7 +75,7 @@ import kfp
 kfp.components.create_component_from_func(
     tfdv_generate_statistics,
     output_component_file='tfdv_generate_statistics_component.yaml', 
-    base_image='gcr.io/pacific-torus-347809/mle-fp/preprocessing:latest')
+    base_image='gcr.io/pacific-torus-347809/mle-fp/preprocessing:v1')
 
 print("done")
 
