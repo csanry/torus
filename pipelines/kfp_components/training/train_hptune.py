@@ -1,19 +1,18 @@
 from typing import NamedTuple
 
-from kfp.components import InputPath
-from kfp.v2.dsl import Artifact
+from kfp.components import InputPath, OutputPath
+from kfp.v2.dsl import Artifact, Model
 
 
 def train_hptune(
         train_file: str,
-        model_bucket: str,
-) -> NamedTuple("outputs", [("final_model", str)]):
+        #model_bucket: str,
+) -> NamedTuple("outputs", [("final_model", Model)]):
 
     from xgboost import XGBClassifier
     from sklearn.model_selection import RandomizedSearchCV
-    # import json
     import pandas as pd
-
+    
     train_df = pd.read_csv(train_file)
 
     PARAMS = {
@@ -21,7 +20,7 @@ def train_hptune(
         'learning_rate': [0.01, 0.1, 1]
     }
 
-    XGB = XGBClassifier(learning_rate=0.2, n_estimators=600)
+    XGB = XGBClassifier()
     PARAM_COMB = 3
 
     random_search = RandomizedSearchCV(XGB,
@@ -39,20 +38,17 @@ def train_hptune(
     xg_model.fit(train_df.drop(columns=["target"]), train_df.target)
     score = xg_model.score(train_df.drop(columns=["target"]), train_df.target)
 
+    model_output_path = f"gs://mle-dwh-torus/models/deployed/model.bst"
+
+    final_model = xg_model.save_model(model_output_path)
     final_model.metadata["framework"] = "XGBoost"
     final_model.metadata["train_score"] = float(score)
 
-    model_output_path = f"gs://mle-dwh-torus/models/deployed/model.bst"
-    xg_model.save_model(model_output_path)
+    #from collections import namedtuple
 
-    # with open("hparams.json", "w") as outfile:
-    #     json.dump(best_params, outfile)
-    #
-    from collections import namedtuple
+    #results = namedtuple("outputs", ["final_model", ])
 
-    results = namedtuple("outputs", ["final_model", ])
-
-    return results(model_output_path,)
+    return (final_model,)
 
 
 if __name__ == "__main__":
