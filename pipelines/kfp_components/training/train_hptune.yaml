@@ -1,0 +1,109 @@
+name: Train hptune
+inputs:
+- {name: train_file, type: String}
+- {name: model_bucket, type: String}
+outputs:
+- {name: final_model, type: String}
+implementation:
+  container:
+    image: gcr.io/pacific-torus-347809/mle-fp/base:v1
+    command:
+    - sh
+    - -c
+    - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
+      'xgboost' 'gcsfs' 'json' 'sklearn' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3
+      -m pip install --quiet --no-warn-script-location 'xgboost' 'gcsfs' 'json' 'sklearn'
+      --user) && "$0" "$@"
+    - sh
+    - -ec
+    - |
+      program_path=$(mktemp)
+      printf "%s" "$0" > "$program_path"
+      python3 -u "$program_path" "$@"
+    - |
+      def train_hptune(
+              train_file,
+              model_bucket,
+      ):
+
+          from xgboost import XGBClassifier
+          from sklearn.model_selection import RandomizedSearchCV
+          # import json
+          import pandas as pd
+
+          train_df = pd.read_csv(train_file)
+
+          PARAMS = {
+              'n_estimators': [200, 300, 400],
+              'learning_rate': [0.01, 0.1, 1]
+          }
+
+          XGB = XGBClassifier(learning_rate=0.2, n_estimators=600)
+          PARAM_COMB = 3
+
+          random_search = RandomizedSearchCV(XGB,
+                                             param_distributions=PARAMS,
+                                             n_iter=PARAM_COMB,
+                                             scoring='roc_auc',
+                                             verbose=3,
+                                             random_state=2022
+                                             )
+
+          best_params = random_search.best_params_
+          best_score = random_search.best_score_
+
+          xg_model = XGBClassifier(**best_params)
+          xg_model.fit(train_df.drop(columns=["target"]), train_df.target)
+          score = xg_model.score(train_df.drop(columns=["target"]), train_df.target)
+
+          final_model.metadata["framework"] = "XGBoost"
+          final_model.metadata["train_score"] = float(score)
+
+          model_output_path = f"gs://mle-dwh-torus/models/deployed/model.bst"
+          xg_model.save_model(model_output_path)
+
+          # with open("hparams.json", "w") as outfile:
+          #     json.dump(best_params, outfile)
+          #
+          from collections import namedtuple
+
+          results = namedtuple("outputs", ["final_model", ])
+
+          return results(model_output_path,)
+
+      def _serialize_str(str_value: str) -> str:
+          if not isinstance(str_value, str):
+              raise TypeError('Value "{}" has type "{}" instead of str.'.format(
+                  str(str_value), str(type(str_value))))
+          return str_value
+
+      import argparse
+      _parser = argparse.ArgumentParser(prog='Train hptune', description='')
+      _parser.add_argument("--train-file", dest="train_file", type=str, required=True, default=argparse.SUPPRESS)
+      _parser.add_argument("--model-bucket", dest="model_bucket", type=str, required=True, default=argparse.SUPPRESS)
+      _parser.add_argument("----output-paths", dest="_output_paths", type=str, nargs=1)
+      _parsed_args = vars(_parser.parse_args())
+      _output_files = _parsed_args.pop("_output_paths", [])
+
+      _outputs = train_hptune(**_parsed_args)
+
+      _output_serializers = [
+          _serialize_str,
+
+      ]
+
+      import os
+      for idx, output_file in enumerate(_output_files):
+          try:
+              os.makedirs(os.path.dirname(output_file))
+          except OSError:
+              pass
+          with open(output_file, 'w') as f:
+              f.write(_output_serializers[idx](_outputs[idx]))
+    args:
+    - --train-file
+    - {inputValue: train_file}
+    - --model-bucket
+    - {inputValue: model_bucket}
+    - '----output-paths'
+    - {outputPath: final_model}
