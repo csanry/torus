@@ -4,7 +4,7 @@ inputs:
 - {name: output_bucket, type: String}
 - {name: output_file, type: String}
 outputs:
-- {name: Output, type: Artifact}
+- {name: Output, type: String}
 implementation:
   container:
     image: gcr.io/pacific-torus-347809/mle-fp/base:latest
@@ -21,29 +21,33 @@ implementation:
       printf "%s" "$0" > "$program_path"
       python3 -u "$program_path" "$@"
     - "from kfp.v2.dsl import Artifact, Dataset, InputPath, OutputPath\n\ndef basic_preprocessing(\n\
-      \    input_file,\n    output_bucket,\n    output_file\n): \n\n    from functools\
+      \    input_file,\n    output_bucket,\n    output_file,\n): \n\n    from functools\
       \ import reduce\n\n    import pandas as pd\n\n    df = pd.read_csv(input_file)\n\
-      \n    df.columns = [col.lower().strip() for col in df.columns] \n\n    df.dropna(inplace=True)\n\
-      \n    df.rename({'default_payment_next_month': \"default\"}, inplace=True)\n\
-      \    df.loc[df['education'] == '0', 'education'] = 'Unknown'\n    df.loc[df['marriage']\
+      \n    df.columns = [col.lower().rstrip('_') for col in df.columns] \n\n    df.dropna(inplace=True)\n\
+      \n    df['target'] = df['default'].apply(lambda x: 1 if x == 'Y' else 0)\n \
+      \   df.loc[df['education'] == '0', 'education'] = 'Unknown'\n    df.loc[df['marriage']\
       \ == '0', 'marriage'] = 'Other'\n    sex = pd.get_dummies(df.sex, prefix='gender')\n\
       \    education = pd.get_dummies(df.education, prefix='ed')\n    marriage = pd.get_dummies(df.marriage,\
       \ prefix='mstatus')\n    frames = [df, sex, education, marriage]\n    final\
-      \ = reduce(lambda l, r: pd.concat([l, r], axis=1), frames)\n    final.drop(['default_payment_next_month',\
-      \ 'sex', 'education', 'marriage'], axis=1, inplace=True)\n\n    output_path\
-      \ = f\"gs://mle-dwh-torus/{output_bucket}/{output_file}\" \n    final.to_csv(output_path,\
-      \ index=False)\n\n    return final\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Basic\
-      \ preprocessing', description='')\n_parser.add_argument(\"--input-file\", dest=\"\
-      input_file\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
+      \ = reduce(lambda l, r: pd.concat([l, r], axis=1), frames)\n    final.drop(['id',\
+      \ 'default', 'sex', 'education', 'marriage'], axis = 1, inplace = True)\n\n\
+      \    output_path = f\"gs://mle-dwh-torus/{output_bucket}/{output_file}\" \n\
+      \    final.to_csv(output_path, index=False)\n\n    return output_path\n\ndef\
+      \ _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value, str):\n\
+      \        raise TypeError('Value \"{}\" has type \"{}\" instead of str.'.format(\n\
+      \            str(str_value), str(type(str_value))))\n    return str_value\n\n\
+      import argparse\n_parser = argparse.ArgumentParser(prog='Basic preprocessing',\
+      \ description='')\n_parser.add_argument(\"--input-file\", dest=\"input_file\"\
+      , type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
       --output-bucket\", dest=\"output_bucket\", type=str, required=True, default=argparse.SUPPRESS)\n\
       _parser.add_argument(\"--output-file\", dest=\"output_file\", type=str, required=True,\
       \ default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\", dest=\"\
       _output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n\
       _output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = basic_preprocessing(**_parsed_args)\n\
-      \n_outputs = [_outputs]\n\n_output_serializers = [\n    str,\n\n]\n\nimport\
-      \ os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n\
-      \    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n\
-      \        f.write(_output_serializers[idx](_outputs[idx]))\n"
+      \n_outputs = [_outputs]\n\n_output_serializers = [\n    _serialize_str,\n\n\
+      ]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n\
+      \        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n  \
+      \      pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
     args:
     - --input-file
     - {inputValue: input_file}

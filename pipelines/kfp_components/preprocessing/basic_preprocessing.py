@@ -1,12 +1,9 @@
 
-from kfp.v2.dsl import Artifact
-
-
 def basic_preprocessing(
     input_file: str,
     output_bucket: str,
-    output_file: str
-) -> Artifact: 
+    output_file: str,
+) -> str: 
 
     from functools import reduce
 
@@ -18,7 +15,6 @@ def basic_preprocessing(
 
     df.dropna(inplace=True)
     
-    df.dropna()
     df['target'] = df['default'].apply(lambda x: 1 if x == 'Y' else 0)
     df.loc[df['education'] == '0', 'education'] = 'Unknown'
     df.loc[df['marriage'] == '0', 'marriage'] = 'Other'
@@ -32,16 +28,17 @@ def basic_preprocessing(
     output_path = f"gs://mle-dwh-torus/{output_bucket}/{output_file}" 
     final.to_csv(output_path, index=False)
 
-    return final
+    return output_path
 
-if __name__ == "__main__": 
-    
-    import kfp 
 
-    kfp.components.func_to_container_op(
-        basic_preprocessing,
-        extra_code="from kfp.v2.dsl import Artifact, Dataset, InputPath, OutputPath",
-        output_component_file='basic_preprocessing_component.yaml', 
-        base_image='gcr.io/pacific-torus-347809/mle-fp/base:latest',
-        packages_to_install=["fsspec", "gcsfs"]
-    )
+import kfp
+
+kfp.components.func_to_container_op(
+    basic_preprocessing,
+    extra_code="from kfp.v2.dsl import Artifact, Dataset, InputPath, OutputPath",
+    output_component_file='basic_preprocessing_component.yaml', 
+    base_image='gcr.io/pacific-torus-347809/mle-fp/base:latest',
+    packages_to_install=["fsspec", "gcsfs"]
+)
+
+print('done')
