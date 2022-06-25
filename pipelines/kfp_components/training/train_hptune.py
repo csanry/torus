@@ -7,7 +7,7 @@ from kfp.v2.dsl import Artifact
 def train_hptune(
         train_file: str,
         model_bucket: str,
-) -> NamedTuple("outputs", [("final_model", Artifact)]):
+) -> NamedTuple("outputs", [("final_model", str)]):
 
     from xgboost import XGBClassifier
     from sklearn.model_selection import RandomizedSearchCV
