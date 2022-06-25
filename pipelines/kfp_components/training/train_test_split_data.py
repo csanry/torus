@@ -5,11 +5,11 @@ from kfp.v2.dsl import Artifact
 
 
 def train_test_split(
-    input_file: InputPath("CSV"),
+    input_file: str,
     output_bucket: str,
 ) -> NamedTuple("outputs", [
-    ("train_data", Artifact),
-    ("test_data", Artifact)
+    ("train_data", str),
+    ("test_data", str)
 ]):
 
     import pandas as pd
@@ -28,7 +28,7 @@ def train_test_split(
 
     results = namedtuple("outputs", ["train_data", "test_data"])
     
-    return results(train, test)
+    return results(output_train_path, output_test_path)
 
 
 if __name__ == "__main__": 
