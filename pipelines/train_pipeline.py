@@ -12,6 +12,8 @@ PIPELINE_ROOT = "{}/pipeline/".format("gs://mle-dwh-torus")
 
 aip.init(project="pacific-torus-347809", staging_bucket="gs://mle-dwh-torus")
 
+
+
 ingest_op = kfp.components.load_component_from_file("./kfp_components/ingest/ingest_component.yaml")
 tfdv_op = kfp.components.load_component_from_file("./kfp_components/preprocessing/tfdv_generate_statistics_component.yaml")
 
@@ -37,7 +39,7 @@ def xgboost_test_pipeline(
         source_table_url="dwh_pacific_torus.credit_card_defaults",
         destination_project_id="pacific-torus-347809",
         destination_bucket="mle-dwh-torus",
-        destination_file="raw/new_test.csv",
+        destination_file="raw/new_ccd_test_02.csv",
         dataset_location="US",
         extract_job_config={},
     ) # .apply(gcp.use_gcp_secret('user-gcp-sa'))
@@ -45,11 +47,11 @@ def xgboost_test_pipeline(
     basic_preprocessing = basic_preprocessing_op(
         input_file=ingest.outputs["dataset_gcs_uri"],
         output_bucket="int",
-        output_file="ccd2.csv"
+        output_file="ccd2_int.csv"
     )
 
     tfdv_step = tfdv_op(
-        input_data="gs://mle-dwh-torus/int/ccd2.csv", # basic_preprocessing.output,
+        input_data=basic_preprocessing.output, # basic_preprocessing.output,
         output_path="gs://mle-dwh-torus/tfdv_expers/eval/evaltest.pb",
         job_name='test-1',
         use_dataflow="False",
@@ -64,29 +66,18 @@ def xgboost_test_pipeline(
     # of the training data set.
     tfdv_drift = tfdv_drift_op(
         stats_older_path="gs://mle-dwh-torus/stats/evaltest.pb", 
-        stats_new_path=tfdv_step.outputs['stats_path']
+        stats_new_path=tfdv_step.outputs['stats_path'],
+        target_feature="limit_bal"
     )
 
+    # if true with drift detected, run the train test split
+    with dsl.Condition(tfdv_drift.outputs["drift"] == "true"):
+        train_test_split_data = train_test_split_data_op(
+            input_file=basic_preprocessing.output,
+            output_bucket="fin"
+        )
 
 
-    train_test_split_data = train_test_split_data_op(
-        input=basic_preprocessing.output,
-        output_bucket="fin"
-    )
-
-    # TFDV stats for the test data
-    # stats = tfdv_op(  
-    #     input_data="gs://mle-dwh-torus/raw/credit_cards.csv",
-    #     output_path="gs://mle-dwh-torus/tfdv_expers/eval/evaltest.pb",
-    #     job_name='test-1',
-    #     use_dataflow="False",
-    #     project_id="pacific-torus-347809", 
-    #     region="US",
-    #     gcs_temp_location='gs://mle-dwh-torus/tfdv_expers/tmp',
-    #     gcs_staging_location='gs://mle-dwh-torus/tfdv_expers',
-    #     whl_location="None", 
-    #     requirements_file="requirements.txt"
-    # ).after(ingest)
 
 
 if __name__ == "__main__": 
