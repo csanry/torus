@@ -16,11 +16,12 @@ def tfdv_generate_statistics(
     gcs_temp_location: str, 
     gcs_staging_location: str,
     whl_location: str = '', 
-) -> NamedTuple('outputs', [('stats_path', str)]):
+) -> NamedTuple('outputs', [('stats_path', str), ('first_time', bool), ('model_exists', bool)]):
 
     import logging
     import os
     import time
+    from google.cloud import storage
 
     import tensorflow_data_validation as tfdv
     import tensorflow_data_validation.statistics.stats_impl
@@ -31,7 +32,6 @@ def tfdv_generate_statistics(
 
     
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "pacific-torus.json"
-
 
     logging.getLogger().setLevel(logging.INFO)
     logging.info("output path: %s", output_path)
@@ -56,6 +56,21 @@ def tfdv_generate_statistics(
         setup_options = options.view_as(SetupOptions)
         setup_options.extra_packages = [whl_location]
     
+    stats_loc = "gs://mle-dwh-torus/stats/evaltest.pb"
+    stats_bucket = stats_loc.split("/")[2]
+    file_name = "/".join(stats_loc.split("/")[3:])
+
+    client = storage.Client()
+    bucket = client.bucket(stats_bucket)
+    file_exists = storage.Blob(bucket=bucket, name=file_name).exists(client)
+
+    model_exists = storage.Blob(bucket=bucket, name='models/deployed/model.pkl').exists(client)
+
+    if not file_exists:
+        output_path = stats_loc
+        first_time = True
+    else:
+        first_time = False
 
     tfdv.generate_statistics_from_csv(
         data_location=input_data, 
@@ -64,11 +79,9 @@ def tfdv_generate_statistics(
 
     from collections import namedtuple
 
-    results = namedtuple("outputs", ["stats_path"])
+    results = namedtuple("outputs", ["stats_path", 'first_time', 'model_exists'])
 
-    return results(output_path, )
-
-
+    return results(output_path, first_time, model_exists)
 
 import kfp
 

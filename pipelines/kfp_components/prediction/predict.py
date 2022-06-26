@@ -5,7 +5,7 @@ from kfp.v2.dsl import Artifact, Model
 
 
 def predict(
-        model_input_file: InputPath(Model),
+        model_input_file: str,
         serving_container_image_uri: str,
         project_id : str,
         region: str

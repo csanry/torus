@@ -24,8 +24,8 @@ implementation:
       \    input_file,\n    output_bucket,\n    output_file,\n): \n\n    from functools\
       \ import reduce\n\n    import pandas as pd\n\n    df = pd.read_csv(input_file)\n\
       \n    df.columns = [col.lower().rstrip('_') for col in df.columns] \n\n    df.dropna(inplace=True)\n\
-      \n    df['target'] = df['default'].apply(lambda x: 1 if x == 'Y' else 0)\n \
-      \   df.loc[df['education'] == '0', 'education'] = 'Unknown'\n    df.loc[df['marriage']\
+      \n    df['target'] = df['default'].apply(lambda x: 1 if x == True else 0)\n\
+      \    df.loc[df['education'] == '0', 'education'] = 'Unknown'\n    df.loc[df['marriage']\
       \ == '0', 'marriage'] = 'Other'\n    sex = pd.get_dummies(df.sex, prefix='gender')\n\
       \    education = pd.get_dummies(df.education, prefix='ed')\n    marriage = pd.get_dummies(df.marriage,\
       \ prefix='mstatus')\n    frames = [df, sex, education, marriage]\n    final\

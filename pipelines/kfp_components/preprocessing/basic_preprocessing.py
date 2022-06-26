@@ -15,7 +15,7 @@ def basic_preprocessing(
 
     df.dropna(inplace=True)
     
-    df['target'] = df['default'].apply(lambda x: 1 if x == 'Y' else 0)
+    df['target'] = df['default'].apply(lambda x: 1 if x == True else 0)
     df.loc[df['education'] == '0', 'education'] = 'Unknown'
     df.loc[df['marriage'] == '0', 'marriage'] = 'Other'
     sex = pd.get_dummies(df.sex, prefix='gender')
