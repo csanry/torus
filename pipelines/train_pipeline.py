@@ -87,18 +87,19 @@ def xgboost_test_pipeline(
     )
 
     
-    with dsl.Condition(model_eval.outputs['deploy'] == "True"):
+    with dsl.Condition(model_eval.outputs['deploy'] == "False"):
         deploy = deploy_op(
-            model_input_file = model_eval.outputs['evaluated_model'],
-            serving_container_image_uri = str,
+            # model_input_file = model_eval.outputs['evaluated_model'],
+            model_input_file = 	'gs://mle-dwh-torus/models/',
+            serving_container_image_uri = "us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest",
             project_id= 'pacific-torus-347809',
-            region = 'asia-southeast1'
+            region = 'us-central1'
         )
 
 if __name__ == "__main__": 
     from datetime import datetime
 
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/Users/christos/mitb-projects/CS611/pacific-torus-347809-106feaa3cc83.json"
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = r"C:\Users\Derin Ben Roberts\Documents\SMU MITB - 2022\SMU - CS611 - ML Engineering\torus\pacific-torus1.json"
     id = datetime.now().strftime(f"%d%H%M")
 
     compiler.Compiler().compile(
@@ -112,7 +113,7 @@ if __name__ == "__main__":
         display_name="testpipeline",
         template_path="./test.json",
         enable_caching=True,
-        job_id=f'test-{id}',
+        job_id=f'RF-test-{id}',
         pipeline_root=PIPELINE_ROOT
     )
 
