@@ -39,12 +39,12 @@ implementation:
       \ 'rb'))\n\n    X = data.drop(['target'], axis = 1)\n    Y = data['target']\n\
       \n    y_prob = model.predict_proba(X)[:, 1]\n    y_pred = model.predict(X)\n\
       \    auc = roc_auc_score(Y, y_prob)\n\n    model_info= {\n        'framework':\
-      \ 'XGBoost',\n        'train_auc': train_auc,\n        'test_auc': auc,\n  \
-      \      'confusion_matrix': {'classes': [0, 1], 'matrix': confusion_matrix(Y,\
-      \ y_pred).tolist()}\n    }\n\n    # Make Checks Before Deployment \n    # Check\
-      \ if a deployed model exists with associated information and make performance\
-      \ comparisons\n\n    model_loc = \"gs://mle-dwh-torus/models/deployed/model_info.json\"\
-      \n    info_bucket = model_loc.split(\"/\")[2]\n    file_name = \"/\".join(model_loc.split(\"\
+      \ 'RF',\n        'train_auc': train_auc,\n        'test_auc': auc,\n       \
+      \ 'confusion_matrix': {'classes': [0, 1], 'matrix': confusion_matrix(Y, y_pred).tolist()}\n\
+      \    }\n\n    # Make Checks Before Deployment \n    # Check if a deployed model\
+      \ exists with associated information and make performance comparisons\n\n  \
+      \  model_loc = \"gs://mle-dwh-torus/models/deployed/model_info.json\"\n    info_bucket\
+      \ = model_loc.split(\"/\")[2]\n    file_name = \"/\".join(model_loc.split(\"\
       /\")[3:])\n    bucket = client.bucket(info_bucket)\n    info_exists = storage.Blob(bucket=bucket,\
       \ name=file_name).exists(client)\n\n    model_output_path = 'gs://mle-dwh-torus/models/deployed/'\n\
       \    model_filename = 'model_info.json'\n    storage_path = os.path.join(model_output_path,\
