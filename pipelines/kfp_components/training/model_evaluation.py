@@ -39,7 +39,7 @@ def model_evaluation(
     auc = roc_auc_score(Y, y_prob)
 
     model_info= {
-        'framework': 'XGBoost',
+        'framework': 'RF',
         'train_auc': train_auc,
         'test_auc': auc,
         'confusion_matrix': {'classes': [0, 1], 'matrix': confusion_matrix(Y, y_pred).tolist()}
