@@ -1,26 +1,14 @@
-FROM python:3.9-bullseye
+FROM gcr.io/pacific-torus-347809/mle-fp/base:latest
 
-# expose port 9000
+# expose port 
 EXPOSE 8888
 
-# set the working directory 
-WORKDIR /project
-
 # copy files 
-COPY . /project/
+COPY /pipelines ./pipelines/
 
-# install requirements file
-RUN pip install --upgrade pip &&\ 
-    pip install --no-cache-dir -r base_requirements.txt &&\
-    useradd -ms /bin/bash lab &&\
-    cd /project &&\
-    make pkg
+# set working dir
+WORKDIR pipelines/
 
-USER lab
-
-# # set shell to bash
-# SHELL ["bin/bash", "-c"]
-
-# to update
-CMD ["jupyter-lab","--ip=0.0.0.0","--no-browser","--allow-root"]
+# run command 
+CMD ["python3", "train_pipeline.py"]
 
