@@ -67,3 +67,6 @@ env:
 	docker login
 	docker pull csanry/basemle:latest
 	docker run -it --rm --name lab -p 8888:8888 -v $(PROJECT_DIR):/project/ csanry/basemle:latest
+
+test_components: 
+	pytest pipelines

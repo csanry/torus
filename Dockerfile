@@ -6,9 +6,14 @@ EXPOSE 8888
 # copy files 
 COPY /pipelines ./pipelines/
 
+COPY Makefile .
+
+RUN pip3 install pytest
+
+
 # set working dir
 WORKDIR pipelines/
 
 # run command 
-CMD ["python3", "train_pipeline.py"]
+ENTRYPOINT ["/bin/bash"]
 
