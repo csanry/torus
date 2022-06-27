@@ -26,8 +26,7 @@ def test_bq_extract_data():
 
     table_id = "pacific-torus-347809.dwh_pacific_torus.test_dataset" 
 
-    bq_client.delete_table(table_id, not_found_ok=True)
-
+   
     job = bq_client.load_table_from_dataframe(
         dataframe=test_df, 
         destination=table_id,
@@ -56,7 +55,9 @@ def test_bq_extract_data():
 
 
     # assert file exists 
-    check_file_exists = storage.Blob(bucket=bucket, name=test_file_name).exists(storage_client)
+    blob = storage.Blob(bucket=bucket, name=test_file_name)
+    
+    check_file_exists = blob.exists(storage_client)
 
     assert check_file_exists
 
@@ -68,3 +69,7 @@ def test_bq_extract_data():
     assert df["test_column"].tail().to_list() == [5, 6, 7, 8, 9]
 
 
+    # clear env
+    bq_client.delete_table(table_id, not_found_ok=True)
+    blob.delete()
+    
