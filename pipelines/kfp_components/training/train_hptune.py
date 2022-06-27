@@ -9,6 +9,7 @@ def train_hptune(
 ) -> NamedTuple("outputs", [("model_path", str), ('train_auc', float)]):
     from xgboost import XGBClassifier
     from sklearn.model_selection import RandomizedSearchCV
+    from sklearn.ensemble import RandomForestClassifier
     from sklearn.metrics import roc_auc_score
     from datetime import datetime
     from google.cloud import storage
@@ -20,17 +21,16 @@ def train_hptune(
 
     PARAMS = {
         'n_estimators': [200, 300, 400],
-        'learning_rate': [0.01, 0.1, 1]
     }
 
-    XGB = XGBClassifier()
-    PARAM_COMB = 3
+    # XGB = XGBClassifier()
+    PARAM_COMB = 2
 
-    random_search = RandomizedSearchCV(XGB,
+    random_search = RandomizedSearchCV(RandomForestClassifier(),
                                        param_distributions=PARAMS,
                                        n_iter=PARAM_COMB,
                                        scoring='accuracy',
-                                       verbose=3,
+                                       verbose=2,
                                        random_state=2022
                                        )
 
@@ -38,7 +38,8 @@ def train_hptune(
 
     best_params = random_search.best_params_
 
-    xg_model = XGBClassifier(**best_params)
+    # xg_model = XGBClassifier(**best_params)
+    xg_model = RandomForestClassifier(**best_params)
 
     X = train_df.drop(['target'], axis = 1)
     Y = train_df['target']

@@ -4,9 +4,6 @@ inputs:
 - {name: serving_container_image_uri, type: String}
 - {name: project_id, type: String}
 - {name: region, type: String}
-outputs:
-- {name: vertex_endpoint, type: Artifact}
-- {name: vertex_model, type: Model}
 implementation:
   container:
     image: gcr.io/pacific-torus-347809/mle-fp/base:latest
@@ -14,8 +11,9 @@ implementation:
     - sh
     - -c
     - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
-      'fsspec' 'gcsfs' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet
-      --no-warn-script-location 'fsspec' 'gcsfs' --user) && "$0" "$@"
+      'pandas' 'gcsfs' 'fsspec' 'sklearn' 'xgboost' || PIP_DISABLE_PIP_VERSION_CHECK=1
+      python3 -m pip install --quiet --no-warn-script-location 'pandas' 'gcsfs' 'fsspec'
+      'sklearn' 'xgboost' --user) && "$0" "$@"
     - sh
     - -ec
     - |
@@ -33,9 +31,9 @@ implementation:
           from google.cloud import aiplatform
           aiplatform.init(project=project_id, location=region)
 
-          DISPLAY_NAME  = "Credit-Card-Default-Check"
-          MODEL_NAME = "CCD-XGB"
-          ENDPOINT_NAME = "Credit-Card-Default-Check-Endpoint"
+          DISPLAY_NAME  = "Credit-Card-Default-Check-RF3"
+          MODEL_NAME = "CCD-RF3"
+          ENDPOINT_NAME = "Credit-Card-Default-Check-Endpoint3"
 
           def create_endpoint():
               endpoints = aiplatform.Endpoint.list(
@@ -84,6 +82,7 @@ implementation:
       _parser.add_argument("--serving-container-image-uri", dest="serving_container_image_uri", type=str, required=True, default=argparse.SUPPRESS)
       _parser.add_argument("--project-id", dest="project_id", type=str, required=True, default=argparse.SUPPRESS)
       _parser.add_argument("--region", dest="region", type=str, required=True, default=argparse.SUPPRESS)
+<<<<<<< HEAD
       _parser.add_argument("----output-paths", dest="_output_paths", type=str, nargs=2)
       _parsed_args = vars(_parser.parse_args())
       _output_files = _parsed_args.pop("_output_paths", [])
@@ -104,6 +103,11 @@ implementation:
               pass
           with open(output_file, 'w') as f:
               f.write(_output_serializers[idx](_outputs[idx]))
+=======
+      _parsed_args = vars(_parser.parse_args())
+
+      _outputs = predict(**_parsed_args)
+>>>>>>> d0878459ec0438b6d3662422f40099d10e2cac11
     args:
     - --model-input-file
     - {inputValue: model_input_file}
@@ -113,6 +117,9 @@ implementation:
     - {inputValue: project_id}
     - --region
     - {inputValue: region}
+<<<<<<< HEAD
     - '----output-paths'
     - {outputPath: vertex_endpoint}
     - {outputPath: vertex_model}
+=======
+>>>>>>> d0878459ec0438b6d3662422f40099d10e2cac11
