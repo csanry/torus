@@ -87,7 +87,7 @@ def xgboost_test_pipeline(
     )
 
     
-    with dsl.Condition(model_eval.outputs['deploy'] == "False"):
+    with dsl.Condition(model_eval.outputs['deploy'] == "True"):
         deploy = deploy_op(
             # model_input_file = model_eval.outputs['evaluated_model'],
             model_input_file = 	'gs://mle-dwh-torus/models/',
@@ -113,7 +113,7 @@ if __name__ == "__main__":
         display_name="testpipeline",
         template_path="./test.json",
         enable_caching=True,
-        job_id=f'RF-test-{id}',
+        job_id=f'rf-test-{id}',
         pipeline_root=PIPELINE_ROOT
     )
 

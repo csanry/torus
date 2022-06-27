@@ -27,36 +27,37 @@ implementation:
       program_path=$(mktemp)
       printf "%s" "$0" > "$program_path"
       python3 -u "$program_path" "$@"
-    - "def model_evaluation(\n    trained_model,\n    train_auc,\n    test_set,\n\
-      \    threshold,\n    deploy = 'False',\n):\n\n    from xgboost import XGBClassifier\n\
-      \    from google.cloud import storage\n    import os\n    import pandas as pd\n\
-      \    import pickle\n    import json\n    from sklearn.metrics import roc_auc_score,\
-      \ confusion_matrix\n\n    # Load Datasets and Models\n    data = pd.read_csv(test_set)\n\
-      \    model = XGBClassifier()\n\n    model_bucket = trained_model.split(\"/\"\
-      )[2]\n    object_name = \"/\".join(trained_model.split(\"/\")[3:])\n\n    client\
-      \ = storage.Client()\n    bu = client.bucket(model_bucket)\n    b = bu.blob(object_name)\n\
-      \    b.download_to_filename('model.pkl')\n    model = pickle.load(open('model.pkl',\
-      \ 'rb'))\n\n    X = data.drop(['target'], axis = 1)\n    Y = data['target']\n\
-      \n    y_prob = model.predict_proba(X)[:, 1]\n    y_pred = model.predict(X)\n\
-      \    auc = roc_auc_score(Y, y_prob)\n\n    model_info= {\n        'framework':\
-      \ 'RF',\n        'train_auc': train_auc,\n        'test_auc': auc,\n       \
-      \ 'confusion_matrix': {'classes': [0, 1], 'matrix': confusion_matrix(Y, y_pred).tolist()}\n\
-      \    }\n\n    # Make Checks Before Deployment \n    # Check if a deployed model\
-      \ exists with associated information and make performance comparisons\n\n  \
-      \  model_loc = \"gs://mle-dwh-torus/models/deployed/model_info.json\"\n    info_bucket\
-      \ = model_loc.split(\"/\")[2]\n    file_name = \"/\".join(model_loc.split(\"\
+    - "def model_evaluation(\n        trained_model,\n        train_auc,\n       \
+      \ test_set,\n        threshold,\n        deploy = 'False',\n):\n    from xgboost\
+      \ import XGBClassifier\n    from google.cloud import storage\n    import os\n\
+      \    import pandas as pd\n    import pickle\n    import json\n    from sklearn.metrics\
+      \ import roc_auc_score, confusion_matrix\n\n    # Load Datasets and Models\n\
+      \    data = pd.read_csv(test_set)\n    model = XGBClassifier()\n\n    model_bucket\
+      \ = trained_model.split(\"/\")[2]\n    object_name = \"/\".join(trained_model.split(\"\
+      /\")[3:])\n\n    client = storage.Client()\n    bu = client.bucket(model_bucket)\n\
+      \    b = bu.blob(object_name)\n    b.download_to_filename('model.pkl')\n   \
+      \ model = pickle.load(open('model.pkl', 'rb'))\n\n    X = data.drop(['target'],\
+      \ axis=1)\n    Y = data['target']\n\n    y_prob = model.predict_proba(X)[:,\
+      \ 1]\n    y_pred = model.predict(X)\n    auc = roc_auc_score(Y, y_prob)\n\n\
+      \    model_info = {\n        'framework': 'RF',\n        'train_auc': train_auc,\n\
+      \        'test_auc': auc,\n        'confusion_matrix': {'classes': [0, 1], 'matrix':\
+      \ confusion_matrix(Y, y_pred).tolist()}\n    }\n\n    # Make Checks Before Deployment\
+      \ \n    # Check if a deployed model exists with associated information and make\
+      \ performance comparisons\n\n    model_loc = \"gs://mle-dwh-torus/models/deployed/model_info.json\"\
+      \n    info_bucket = model_loc.split(\"/\")[2]\n    file_name = \"/\".join(model_loc.split(\"\
       /\")[3:])\n    bucket = client.bucket(info_bucket)\n    info_exists = storage.Blob(bucket=bucket,\
-      \ name=file_name).exists(client)\n\n    model_output_path = 'gs://mle-dwh-torus/models/deployed/'\n\
+      \ name=file_name).exists(client)\n    print(\"info_exists\", info_exists)\n\
+      \    print(\"AUC\", auc)\n    model_output_path = 'gs://mle-dwh-torus/models/deployed/'\n\
       \    model_filename = 'model_info.json'\n    storage_path = os.path.join(model_output_path,\
       \ model_filename)\n\n    from collections import namedtuple\n    results = namedtuple(\"\
       outputs\", ['deploy', 'evaluated_model'])\n\n    if not info_exists and auc\
       \ > threshold:\n        deploy = 'True'\n        blob = storage.blob.Blob.from_string(storage_path,\
-      \ client = storage.Client())\n        blob.upload_from_string(data = json.dumps(model_info),\
+      \ client=storage.Client())\n        blob.upload_from_string(data=json.dumps(model_info),\
       \ content_type='application/json')\n        return results(deploy, trained_model)\n\
       \n    elif info_exists:\n        blob = bucket.get_blob(file_name)\n       \
       \ info = json.loads(blob.download_as_string())\n\n        if auc >= info['test_auc']:\n\
       \            deploy = 'True'\n            blob = storage.blob.Blob.from_string(storage_path,\
-      \ client = storage.Client())\n            blob.upload_from_string(data = json.dumps(model_info),\
+      \ client=storage.Client())\n            blob.upload_from_string(data=json.dumps(model_info),\
       \ content_type='application/json')\n            return results(deploy, trained_model)\n\
       \n        else:\n            return results(deploy, trained_model)\n\ndef _serialize_str(str_value:\
       \ str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value\
