@@ -6,7 +6,7 @@ import kfp
 from google.cloud import storage
 from kfp.v2 import compiler, dsl
 
-tfdv_op = kfp.components.load_component_from_file("./pipelines/kfp_components/preprocessing/tfdv_generate_statistics_component.yaml")
+tfdv_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/main/pipelines/kfp_components/preprocessing/tfdv_generate_statistics_component.yaml")
 
 def test_tfdv_generate_statistics():
 
@@ -60,6 +60,3 @@ def test_tfdv_generate_statistics():
 
     assert check_exists
 
-
-
-test_tfdv_generate_statistics()
