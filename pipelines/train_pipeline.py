@@ -99,12 +99,12 @@ def xgboost_test_pipeline(
 if __name__ == "__main__": 
     from datetime import datetime
 
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = r"C:\Users\Derin Ben Roberts\Documents\SMU MITB - 2022\SMU - CS611 - ML Engineering\torus\pacific-torus1.json"
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/Users/christos/mitb-projects/CS611/pacific-torus-347809-106feaa3cc83.json"
     id = datetime.now().strftime(f"%d%H%M")
 
     compiler.Compiler().compile(
         pipeline_func=xgboost_test_pipeline,
-        pipeline_name="xgboost-train-pipeline",
+        pipeline_name="ccd-train-pipeline",
         package_path="./test.json",
         type_check=True,
     )

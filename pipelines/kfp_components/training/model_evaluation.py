@@ -10,17 +10,17 @@ def model_evaluation(
         threshold: float,
         deploy: str = 'False',
 ) -> NamedTuple("Outputs", [('deploy', str), ('evaluated_model', str)]):
-    from xgboost import XGBClassifier
     from google.cloud import storage
     import os
     import pandas as pd
     import pickle
     import json
+    from sklearn.ensemble import RandomForestClassifier
     from sklearn.metrics import roc_auc_score, confusion_matrix
 
     # Load Datasets and Models
     data = pd.read_csv(test_set)
-    model = XGBClassifier()
+    model = RandomForestClassifier()
 
     model_bucket = trained_model.split("/")[2]
     object_name = "/".join(trained_model.split("/")[3:])
@@ -48,25 +48,35 @@ def model_evaluation(
     # Make Checks Before Deployment 
     # Check if a deployed model exists with associated information and make performance comparisons
 
-    model_loc = "gs://mle-dwh-torus/models/deployed/model_info.json"
-    info_bucket = model_loc.split("/")[2]
-    file_name = "/".join(model_loc.split("/")[3:])
+    model_info_loc = "gs://mle-dwh-torus/models/deployed/model_info.json"
+    info_bucket = model_info_loc.split("/")[2]
+    file_name = "/".join(model_info_loc.split("/")[3:])
     bucket = client.bucket(info_bucket)
     info_exists = storage.Blob(bucket=bucket, name=file_name).exists(client)
-    print("info_exists", info_exists)
-    print("AUC", auc)
     model_output_path = 'gs://mle-dwh-torus/models/deployed/'
-    model_filename = 'model_info.json'
-    storage_path = os.path.join(model_output_path, model_filename)
+    model_info_filename = 'model_info.json'
+    model_filename = 'model.pkl'
+
+    info_storage_path = os.path.join(model_output_path, model_info_filename)
+    model_storage_path = os.path.join(model_output_path, model_filename)
 
     from collections import namedtuple
     results = namedtuple("outputs", ['deploy', 'evaluated_model'])
 
+    def set_params_upload():
+        with open('model.pkl', 'wb') as model_file:
+            pickle.dump(model, model_file)
+
+        info_blob = storage.blob.Blob.from_string(info_storage_path, client=storage.Client())
+        model_blob = storage.blob.Blob.from_string(model_storage_path, client=storage.Client())
+        info_blob.upload_from_string(data=json.dumps(model_info), content_type='application/json')
+        model_blob.upload_from_filename('model.pkl')
+
     if not info_exists and auc > threshold:
         deploy = 'True'
-        blob = storage.blob.Blob.from_string(storage_path, client=storage.Client())
-        blob.upload_from_string(data=json.dumps(model_info), content_type='application/json')
-        return results(deploy, trained_model)
+        set_params_upload()
+        model_loc = "gs://mle-dwh-torus/models/deployed/model.pkl"
+        return results(deploy, model_loc)
 
     elif info_exists:
         blob = bucket.get_blob(file_name)
@@ -74,13 +84,12 @@ def model_evaluation(
 
         if auc >= info['test_auc']:
             deploy = 'True'
-            blob = storage.blob.Blob.from_string(storage_path, client=storage.Client())
-            blob.upload_from_string(data=json.dumps(model_info), content_type='application/json')
-            return results(deploy, trained_model)
+            set_params_upload()
+            model_loc = "gs://mle-dwh-torus/models/deployed/model.pkl"
+            return results(deploy, model_loc)
 
         else:
-            return results(deploy, trained_model)
-
+            return results(deploy, None)
 
 if __name__ == "__main__":
     import kfp

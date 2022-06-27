@@ -82,32 +82,9 @@ implementation:
       _parser.add_argument("--serving-container-image-uri", dest="serving_container_image_uri", type=str, required=True, default=argparse.SUPPRESS)
       _parser.add_argument("--project-id", dest="project_id", type=str, required=True, default=argparse.SUPPRESS)
       _parser.add_argument("--region", dest="region", type=str, required=True, default=argparse.SUPPRESS)
-<<<<<<< HEAD
-      _parser.add_argument("----output-paths", dest="_output_paths", type=str, nargs=2)
-      _parsed_args = vars(_parser.parse_args())
-      _output_files = _parsed_args.pop("_output_paths", [])
-
-      _outputs = predict(**_parsed_args)
-
-      _output_serializers = [
-          str,
-          str,
-
-      ]
-
-      import os
-      for idx, output_file in enumerate(_output_files):
-          try:
-              os.makedirs(os.path.dirname(output_file))
-          except OSError:
-              pass
-          with open(output_file, 'w') as f:
-              f.write(_output_serializers[idx](_outputs[idx]))
-=======
       _parsed_args = vars(_parser.parse_args())
 
       _outputs = predict(**_parsed_args)
->>>>>>> d0878459ec0438b6d3662422f40099d10e2cac11
     args:
     - --model-input-file
     - {inputValue: model_input_file}
@@ -117,9 +94,3 @@ implementation:
     - {inputValue: project_id}
     - --region
     - {inputValue: region}
-<<<<<<< HEAD
-    - '----output-paths'
-    - {outputPath: vertex_endpoint}
-    - {outputPath: vertex_model}
-=======
->>>>>>> d0878459ec0438b6d3662422f40099d10e2cac11
