@@ -15,14 +15,14 @@ steps:
 #   - "-c"
 #   - |
 #     echo "Docker Container Built And Pushed"  
- - name: 'gcr.io/cloud-builders/gcloud'
+- name: 'gcr.io/cloud-builders/gcloud'
   entrypoint: "bash"
   args: ['make', 'test_components']
   timeout: 180s
   id: "Make Tests"
   waitFor: ["Push Base Image"]
-  
-   - name: 'gcr.io/$PROJECT_ID/mle-fp/base:latest'
+
+- name: 'gcr.io/$PROJECT_ID/mle-fp/base:latest'
   entrypoint: "python"
   args: ['python', 'train_pipeline.py']
   timeout: 180s
