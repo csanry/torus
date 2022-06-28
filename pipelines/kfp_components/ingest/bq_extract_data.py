@@ -79,7 +79,6 @@ if __name__ == "__main__":
 
     kfp.components.func_to_container_op(
         bq_extract_data,
-        extra_code="from typing import NamedTuple",
-        output_component_file='./ingest_component.yaml', 
-        base_image='gcr.io/pacific-torus-347809/mle-fp/base:latest'
+        output_component_file="./ingest_component.yaml", 
+        base_image="gcr.io/pacific-torus-347809/mle-fp/ingest:latest"
     )
