@@ -10,7 +10,7 @@ steps:
   id: "Push Base Image"
 
 - name: 'gcr.io/cloud-builders/docker'
-  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/mle-fp/pipeline:latest', '.' ]   #build the docker file found in the current directory
+  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/mle-fp/pipeline:latest', '.' ]   
   timeout: 180s
   id: "Build Image"
   
