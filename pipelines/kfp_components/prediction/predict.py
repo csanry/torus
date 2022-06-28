@@ -5,21 +5,18 @@ from kfp.v2.dsl import Artifact, Model
 
 
 def predict(
-        model_input_file: InputPath(Model),
+        model_input_file: str,
         serving_container_image_uri: str,
         project_id : str,
         region: str
-) -> NamedTuple("outputs", [
-    ("vertex_endpoint", Artifact),
-    ("vertex_model", Model)
-]):
+):
 
     from google.cloud import aiplatform
     aiplatform.init(project=project_id, location=region)
 
-    DISPLAY_NAME  = "Credit-Card-Default-Check"
-    MODEL_NAME = "CCD-XGB"
-    ENDPOINT_NAME = "Credit-Card-Default-Check-Endpoint"
+    DISPLAY_NAME  = "Credit-Card-Default-Check-RF4"
+    MODEL_NAME = "CCD-RF4"
+    ENDPOINT_NAME = "Credit-Card-Default-Check-Endpoint4"
 
     def create_endpoint():
         endpoints = aiplatform.Endpoint.list(
@@ -70,4 +67,4 @@ if __name__ == "__main__":
         predict,
         output_component_file='predict.yaml',
         base_image='gcr.io/pacific-torus-347809/mle-fp/base:latest',
-        packages_to_install=["fsspec", "gcsfs"])
+        packages_to_install=["pandas", "gcsfs", "fsspec", "sklearn", "xgboost"])

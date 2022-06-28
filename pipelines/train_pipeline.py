@@ -22,7 +22,7 @@ train_test_split_data_op = kfp.components.load_component_from_file("./kfp_compon
 
 train_tune_op = kfp.components.load_component_from_file("./kfp_components/training/train_hptune.yaml")
 model_evaluation_op = kfp.components.load_component_from_file("./kfp_components/training/model_evaluation.yaml")
-#deploy_op = kfp.components.load_component_from_file("./kfp_components/prediction/predict.yaml")
+deploy_op = kfp.components.load_component_from_file("./kfp_components/prediction/predict.yaml")
 
 
 # Define the pipeline
@@ -63,49 +63,57 @@ def xgboost_test_pipeline(
 
     # compare generated training data stats with stats from a previous version
     # of the training data set.
+ 
     tfdv_drift = tfdv_drift_op(
         stats_older_path="gs://mle-dwh-torus/stats/evaltest.pb", 
         stats_new_path=tfdv_step.outputs['stats_path'],
         target_feature="limit_bal"
     )
 
-    # if true with drift detected, run the train test split
-    with dsl.Condition(tfdv_drift.outputs["drift"] == "true"):
+    with dsl.Condition(tfdv_drift.outputs['drift']=='true'):
         train_test_split_data = train_test_split_data_op(
-            input_file=basic_preprocessing.output,
-            output_bucket="fin"
+                input_file=basic_preprocessing.output,
+                output_bucket="fin"
+            )
+
+        train_tune = train_tune_op(
+            train_file = train_test_split_data.outputs['train_data']
         )
-    
-    train_tune = train_tune_op(
-        train_file = train_test_split_data.outputs['train_data']
-    )
 
-    model_eval = model_evaluation_op(
-        deployed_model_bucket = "gs://mle-dwh-torus/models/deployed",
-        trained_model = train_tune.outputs['final_model'],
-        test_set = train_test_split_data.outputs['test_data'],
-        threshold = 0.6
-    )
+        model_eval = model_evaluation_op(
+            trained_model = train_tune.outputs['model_path'],
+            train_auc = train_tune.outputs['train_auc'],
+            test_set = train_test_split_data.outputs['test_data'],
+            threshold = 0.6
+        )
 
-    ''''
-    with dsl.Condition(model_eval.outputs['deploy'] == "True"):
+        with dsl.Condition(model_eval.outputs['deploy'] == "True"):
+            deploy = deploy_op(
+                # model_input_file = model_eval.outputs['evaluated_model'],
+                model_input_file = 	'gs://mle-dwh-torus/models/',
+                serving_container_image_uri = "us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest",
+                project_id= 'pacific-torus-347809',
+                region = 'us-central1'
+            )
+            
+    with dsl.Condition(tfdv_drift.outputs['drift']=='false'):
         deploy = deploy_op(
-            model_input_file = model_eval.outputs['trained_model'],
-            serving_container_image_uri = str,
-            project_id= 'pacific-torus-347809',
-            region = 'asia-southeast1'
-        )
-    '''
+                    # model_input_file = model_eval.outputs['evaluated_model'],
+                    model_input_file = 	'gs://mle-dwh-torus/models/',
+                    serving_container_image_uri = "us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest",
+                    project_id= 'pacific-torus-347809',
+                    region = 'us-central1'
+                )
 
 if __name__ == "__main__": 
     from datetime import datetime
 
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "../pacific-torus.json"
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/Users/christos/mitb-projects/CS611/pacific-torus-347809-106feaa3cc83.json"
     id = datetime.now().strftime(f"%d%H%M")
 
     compiler.Compiler().compile(
         pipeline_func=xgboost_test_pipeline,
-        pipeline_name="xgboost-train-pipeline",
+        pipeline_name="ccd-train-pipeline",
         package_path="./test.json",
         type_check=True,
     )
@@ -113,7 +121,8 @@ if __name__ == "__main__":
     job = aip.PipelineJob(
         display_name="testpipeline",
         template_path="./test.json",
-        job_id=f'test-{id}',
+        enable_caching=True,
+        job_id=f'rf-test-{id}',
         pipeline_root=PIPELINE_ROOT
     )
 

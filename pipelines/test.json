@@ -1,0 +1,1032 @@
+{
+  "pipelineSpec": {
+    "components": {
+      "comp-basic-preprocessing": {
+        "executorLabel": "exec-basic-preprocessing",
+        "inputDefinitions": {
+          "parameters": {
+            "input_file": {
+              "type": "STRING"
+            },
+            "output_bucket": {
+              "type": "STRING"
+            },
+            "output_file": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "parameters": {
+            "Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-bq-extract-data": {
+        "executorLabel": "exec-bq-extract-data",
+        "inputDefinitions": {
+          "parameters": {
+            "dataset_location": {
+              "type": "STRING"
+            },
+            "destination_bucket": {
+              "type": "STRING"
+            },
+            "destination_file": {
+              "type": "STRING"
+            },
+            "destination_project_id": {
+              "type": "STRING"
+            },
+            "extract_job_config": {
+              "type": "STRING"
+            },
+            "source_project_id": {
+              "type": "STRING"
+            },
+            "source_table_url": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "parameters": {
+            "dataset_gcs_directory": {
+              "type": "STRING"
+            },
+            "dataset_gcs_uri": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-condition-1": {
+        "dag": {
+          "tasks": {
+            "condition-2": {
+              "componentRef": {
+                "name": "comp-condition-2"
+              },
+              "dependentTasks": [
+                "model-evaluation"
+              ],
+              "inputs": {
+                "parameters": {
+                  "pipelineparam--model-evaluation-deploy": {
+                    "taskOutputParameter": {
+                      "outputParameterKey": "deploy",
+                      "producerTask": "model-evaluation"
+                    }
+                  },
+                  "pipelineparam--tfdv-detect-drift-drift": {
+                    "componentInputParameter": "pipelineparam--tfdv-detect-drift-drift"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "condition-2"
+              },
+              "triggerPolicy": {
+                "condition": "inputs.parameters['pipelineparam--model-evaluation-deploy'].string_value == 'True'"
+              }
+            },
+            "model-evaluation": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-model-evaluation"
+              },
+              "dependentTasks": [
+                "train-hptune",
+                "train-test-split"
+              ],
+              "inputs": {
+                "parameters": {
+                  "deploy": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": "False"
+                      }
+                    }
+                  },
+                  "test_set": {
+                    "taskOutputParameter": {
+                      "outputParameterKey": "test_data",
+                      "producerTask": "train-test-split"
+                    }
+                  },
+                  "threshold": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "doubleValue": 0.6
+                      }
+                    }
+                  },
+                  "train_auc": {
+                    "taskOutputParameter": {
+                      "outputParameterKey": "train_auc",
+                      "producerTask": "train-hptune"
+                    }
+                  },
+                  "trained_model": {
+                    "taskOutputParameter": {
+                      "outputParameterKey": "model_path",
+                      "producerTask": "train-hptune"
+                    }
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "model-evaluation"
+              }
+            },
+            "train-hptune": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-train-hptune"
+              },
+              "dependentTasks": [
+                "train-test-split"
+              ],
+              "inputs": {
+                "parameters": {
+                  "train_file": {
+                    "taskOutputParameter": {
+                      "outputParameterKey": "train_data",
+                      "producerTask": "train-test-split"
+                    }
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "train-hptune"
+              }
+            },
+            "train-test-split": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-train-test-split"
+              },
+              "inputs": {
+                "parameters": {
+                  "input_file": {
+                    "componentInputParameter": "pipelineparam--basic-preprocessing-Output"
+                  },
+                  "output_bucket": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": "fin"
+                      }
+                    }
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "train-test-split"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--basic-preprocessing-Output": {
+              "type": "STRING"
+            },
+            "pipelineparam--tfdv-detect-drift-drift": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-condition-2": {
+        "dag": {
+          "tasks": {
+            "predict": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-predict"
+              },
+              "inputs": {
+                "parameters": {
+                  "model_input_file": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": "gs://mle-dwh-torus/models/"
+                      }
+                    }
+                  },
+                  "project_id": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": "pacific-torus-347809"
+                      }
+                    }
+                  },
+                  "region": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": "us-central1"
+                      }
+                    }
+                  },
+                  "serving_container_image_uri": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": "us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest"
+                      }
+                    }
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "predict"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--model-evaluation-deploy": {
+              "type": "STRING"
+            },
+            "pipelineparam--tfdv-detect-drift-drift": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-condition-3": {
+        "dag": {
+          "tasks": {
+            "predict-2": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-predict-2"
+              },
+              "inputs": {
+                "parameters": {
+                  "model_input_file": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": "gs://mle-dwh-torus/models/"
+                      }
+                    }
+                  },
+                  "project_id": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": "pacific-torus-347809"
+                      }
+                    }
+                  },
+                  "region": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": "us-central1"
+                      }
+                    }
+                  },
+                  "serving_container_image_uri": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": "us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest"
+                      }
+                    }
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "predict-2"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--tfdv-detect-drift-drift": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-model-evaluation": {
+        "executorLabel": "exec-model-evaluation",
+        "inputDefinitions": {
+          "parameters": {
+            "deploy": {
+              "type": "STRING"
+            },
+            "test_set": {
+              "type": "STRING"
+            },
+            "threshold": {
+              "type": "DOUBLE"
+            },
+            "train_auc": {
+              "type": "DOUBLE"
+            },
+            "trained_model": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "parameters": {
+            "deploy": {
+              "type": "STRING"
+            },
+            "evaluated_model": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-predict": {
+        "executorLabel": "exec-predict",
+        "inputDefinitions": {
+          "parameters": {
+            "model_input_file": {
+              "type": "STRING"
+            },
+            "project_id": {
+              "type": "STRING"
+            },
+            "region": {
+              "type": "STRING"
+            },
+            "serving_container_image_uri": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-predict-2": {
+        "executorLabel": "exec-predict-2",
+        "inputDefinitions": {
+          "parameters": {
+            "model_input_file": {
+              "type": "STRING"
+            },
+            "project_id": {
+              "type": "STRING"
+            },
+            "region": {
+              "type": "STRING"
+            },
+            "serving_container_image_uri": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-tfdv-detect-drift": {
+        "executorLabel": "exec-tfdv-detect-drift",
+        "inputDefinitions": {
+          "parameters": {
+            "stats_new_path": {
+              "type": "STRING"
+            },
+            "stats_older_path": {
+              "type": "STRING"
+            },
+            "target_feature": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "parameters": {
+            "drift": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-tfdv-generate-statistics": {
+        "executorLabel": "exec-tfdv-generate-statistics",
+        "inputDefinitions": {
+          "parameters": {
+            "gcs_staging_location": {
+              "type": "STRING"
+            },
+            "gcs_temp_location": {
+              "type": "STRING"
+            },
+            "input_data": {
+              "type": "STRING"
+            },
+            "job_name": {
+              "type": "STRING"
+            },
+            "output_path": {
+              "type": "STRING"
+            },
+            "project_id": {
+              "type": "STRING"
+            },
+            "region": {
+              "type": "STRING"
+            },
+            "use_dataflow": {
+              "type": "STRING"
+            },
+            "whl_location": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "parameters": {
+            "first_time": {
+              "type": "STRING"
+            },
+            "model_exists": {
+              "type": "STRING"
+            },
+            "stats_path": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-train-hptune": {
+        "executorLabel": "exec-train-hptune",
+        "inputDefinitions": {
+          "parameters": {
+            "train_file": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "parameters": {
+            "model_path": {
+              "type": "STRING"
+            },
+            "train_auc": {
+              "type": "DOUBLE"
+            }
+          }
+        }
+      },
+      "comp-train-test-split": {
+        "executorLabel": "exec-train-test-split",
+        "inputDefinitions": {
+          "parameters": {
+            "input_file": {
+              "type": "STRING"
+            },
+            "output_bucket": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "parameters": {
+            "test_data": {
+              "type": "STRING"
+            },
+            "train_data": {
+              "type": "STRING"
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-basic-preprocessing": {
+          "container": {
+            "args": [
+              "--input-file",
+              "{{$.inputs.parameters['input_file']}}",
+              "--output-bucket",
+              "{{$.inputs.parameters['output_bucket']}}",
+              "--output-file",
+              "{{$.inputs.parameters['output_file']}}",
+              "----output-paths",
+              "{{$.outputs.parameters['Output'].output_file}}"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'fsspec' 'gcsfs' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'fsspec' 'gcsfs' --user) && \"$0\" \"$@\"",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "from kfp.v2.dsl import Artifact, Dataset, InputPath, OutputPath\n\ndef basic_preprocessing(\n    input_file,\n    output_bucket,\n    output_file,\n): \n\n    from functools import reduce\n\n    import pandas as pd\n\n    df = pd.read_csv(input_file)\n\n    df.columns = [col.lower().rstrip('_') for col in df.columns] \n\n    df.dropna(inplace=True)\n\n    df['target'] = df['default'].apply(lambda x: 1 if x == True else 0)\n    df.loc[df['education'] == '0', 'education'] = 'Unknown'\n    df.loc[df['marriage'] == '0', 'marriage'] = 'Other'\n    sex = pd.get_dummies(df.sex, prefix='gender')\n    education = pd.get_dummies(df.education, prefix='ed')\n    marriage = pd.get_dummies(df.marriage, prefix='mstatus')\n    frames = [df, sex, education, marriage]\n    final = reduce(lambda l, r: pd.concat([l, r], axis=1), frames)\n    final.drop(['id', 'default', 'sex', 'education', 'marriage'], axis = 1, inplace = True)\n\n    output_path = f\"gs://mle-dwh-torus/{output_bucket}/{output_file}\" \n    final.to_csv(output_path, index=False)\n\n    return output_path\n\ndef _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of str.'.format(\n            str(str_value), str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Basic preprocessing', description='')\n_parser.add_argument(\"--input-file\", dest=\"input_file\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--output-bucket\", dest=\"output_bucket\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--output-file\", dest=\"output_file\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\", dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = basic_preprocessing(**_parsed_args)\n\n_outputs = [_outputs]\n\n_output_serializers = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+            ],
+            "image": "gcr.io/pacific-torus-347809/mle-fp/base:latest"
+          }
+        },
+        "exec-bq-extract-data": {
+          "container": {
+            "args": [
+              "--source-project-id",
+              "{{$.inputs.parameters['source_project_id']}}",
+              "--source-table-url",
+              "{{$.inputs.parameters['source_table_url']}}",
+              "--destination-project-id",
+              "{{$.inputs.parameters['destination_project_id']}}",
+              "--destination-bucket",
+              "{{$.inputs.parameters['destination_bucket']}}",
+              "--destination-file",
+              "{{$.inputs.parameters['destination_file']}}",
+              "--dataset-location",
+              "{{$.inputs.parameters['dataset_location']}}",
+              "--extract-job-config",
+              "{{$.inputs.parameters['extract_job_config']}}",
+              "----output-paths",
+              "{{$.outputs.parameters['dataset_gcs_uri'].output_file}}",
+              "{{$.outputs.parameters['dataset_gcs_directory'].output_file}}"
+            ],
+            "command": [
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "from typing import NamedTuple\n\ndef bq_extract_data(\n    source_project_id,\n    source_table_url,\n    destination_project_id,\n    destination_bucket, \n    destination_file,\n    dataset_location,\n    extract_job_config = None,\n):\n\n    import logging\n    import os\n\n    from google.cloud import bigquery, storage\n    from google.cloud.exceptions import GoogleCloudError\n\n    os.environ[\"GOOGLE_APPLICATION_CREDENTIALS\"] = \"pacific-torus.json\"\n\n    # logging.config.fileConfig(LOGGING_CONF)\n    logger = logging.getLogger(\"root\")\n\n    storage_client = storage.Client(project=destination_project_id)\n\n    if not storage.Bucket(storage_client, destination_bucket).exists():\n        bucket = storage_client.bucket(destination_bucket)\n        bucket.storage_class = \"STANDARD\" \n        storage_client.create_bucket(\n            bucket_or_name=bucket, location=\"ASIA-SOUTHEAST1\", project=destination_project_id\n        )\n        logger.info(f\"Bucket created {destination_bucket}\")\n\n    full_table_url = f\"{source_project_id}.{source_table_url}\"\n    table = bigquery.table.Table(table_ref=full_table_url)\n\n    if extract_job_config is None:\n        extract_job_config = {}\n    if destination_file.endswith(\".json\"):\n        extract_job_config = {\"destination_format\": \"NEWLINE_DELIMITED_JSON\"}\n    job_config = bigquery.ExtractJobConfig(**extract_job_config)\n\n    dataset_gcs_uri = f\"gs://{destination_bucket}/{destination_file}\"\n\n    bq_client = bigquery.Client(project=destination_project_id)\n\n    logger.info(f\"Extract {source_table_url} to {dataset_gcs_uri}\")\n    extract_job = bq_client.extract_table(\n        source=table,\n        destination_uris=dataset_gcs_uri,\n        job_config=job_config,\n        location=dataset_location,\n    )\n\n    dataset_gcs_directory = os.path.dirname(dataset_gcs_uri)\n\n    try:\n        extract_job.result()\n        logger.info(f\"Table extracted: {dataset_gcs_uri}\")\n    except GoogleCloudError as e:\n        logger.error(e)\n        logger.error(extract_job.error_result)\n        logger.error(extract_job.errors)\n        raise e\n\n    return (dataset_gcs_uri, dataset_gcs_directory)\n\ndef _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of str.'.format(\n            str(str_value), str(type(str_value))))\n    return str_value\n\nimport json\nimport argparse\n_parser = argparse.ArgumentParser(prog='Bq extract data', description='')\n_parser.add_argument(\"--source-project-id\", dest=\"source_project_id\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--source-table-url\", dest=\"source_table_url\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--destination-project-id\", dest=\"destination_project_id\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--destination-bucket\", dest=\"destination_bucket\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--destination-file\", dest=\"destination_file\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--dataset-location\", dest=\"dataset_location\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--extract-job-config\", dest=\"extract_job_config\", type=json.loads, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\", dest=\"_output_paths\", type=str, nargs=2)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = bq_extract_data(**_parsed_args)\n\n_output_serializers = [\n    _serialize_str,\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+            ],
+            "image": "gcr.io/pacific-torus-347809/mle-fp/base:latest"
+          }
+        },
+        "exec-model-evaluation": {
+          "container": {
+            "args": [
+              "--trained-model",
+              "{{$.inputs.parameters['trained_model']}}",
+              "--train-auc",
+              "{{$.inputs.parameters['train_auc']}}",
+              "--test-set",
+              "{{$.inputs.parameters['test_set']}}",
+              "--threshold",
+              "{{$.inputs.parameters['threshold']}}",
+              "--deploy",
+              "{{$.inputs.parameters['deploy']}}",
+              "----output-paths",
+              "{{$.outputs.parameters['deploy'].output_file}}",
+              "{{$.outputs.parameters['evaluated_model'].output_file}}"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'pandas' 'gcsfs' 'fsspec' 'sklearn' 'xgboost' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'pandas' 'gcsfs' 'fsspec' 'sklearn' 'xgboost' --user) && \"$0\" \"$@\"",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "def model_evaluation(\n        trained_model,\n        train_auc,\n        test_set,\n        threshold,\n        deploy = 'False',\n):\n    from google.cloud import storage\n    import os\n    import pandas as pd\n    import pickle\n    import json\n    from sklearn.ensemble import RandomForestClassifier\n    from sklearn.metrics import roc_auc_score, confusion_matrix\n\n    # Load Datasets and Models\n    data = pd.read_csv(test_set)\n    model = RandomForestClassifier()\n\n    model_bucket = trained_model.split(\"/\")[2]\n    object_name = \"/\".join(trained_model.split(\"/\")[3:])\n\n    client = storage.Client()\n    bu = client.bucket(model_bucket)\n    b = bu.blob(object_name)\n    b.download_to_filename('model.pkl')\n    model = pickle.load(open('model.pkl', 'rb'))\n\n    X = data.drop(['target'], axis=1)\n    Y = data['target']\n\n    y_prob = model.predict_proba(X)[:, 1]\n    y_pred = model.predict(X)\n    auc = roc_auc_score(Y, y_prob)\n\n    model_info = {\n        'framework': 'RF',\n        'train_auc': train_auc,\n        'test_auc': auc,\n        'confusion_matrix': {'classes': [0, 1], 'matrix': confusion_matrix(Y, y_pred).tolist()}\n    }\n\n    # Make Checks Before Deployment \n    # Check if a deployed model exists with associated information and make performance comparisons\n\n    model_info_loc = \"gs://mle-dwh-torus/models/deployed/model_info.json\"\n    info_bucket = model_info_loc.split(\"/\")[2]\n    file_name = \"/\".join(model_info_loc.split(\"/\")[3:])\n    bucket = client.bucket(info_bucket)\n    info_exists = storage.Blob(bucket=bucket, name=file_name).exists(client)\n    model_output_path = 'gs://mle-dwh-torus/models/deployed/'\n    model_info_filename = 'model_info.json'\n    model_filename = 'model.pkl'\n\n    info_storage_path = os.path.join(model_output_path, model_info_filename)\n    model_storage_path = os.path.join(model_output_path, model_filename)\n\n    from collections import namedtuple\n    results = namedtuple(\"outputs\", ['deploy', 'evaluated_model'])\n\n    def set_params_upload():\n        with open('model.pkl', 'wb') as model_file:\n            pickle.dump(model, model_file)\n\n        info_blob = storage.blob.Blob.from_string(info_storage_path, client=storage.Client())\n        model_blob = storage.blob.Blob.from_string(model_storage_path, client=storage.Client())\n        info_blob.upload_from_string(data=json.dumps(model_info), content_type='application/json')\n        model_blob.upload_from_filename('model.pkl')\n\n    if not info_exists and auc > threshold:\n        deploy = 'True'\n        set_params_upload()\n        model_loc = \"gs://mle-dwh-torus/models/deployed/model.pkl\"\n        return results(deploy, model_loc)\n\n    elif info_exists:\n        blob = bucket.get_blob(file_name)\n        info = json.loads(blob.download_as_string())\n\n        if auc >= info['test_auc']:\n            deploy = 'True'\n            set_params_upload()\n            model_loc = \"gs://mle-dwh-torus/models/deployed/model.pkl\"\n            return results(deploy, model_loc)\n\n        else:\n            return results(deploy, None)\n\ndef _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of str.'.format(\n            str(str_value), str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Model evaluation', description='')\n_parser.add_argument(\"--trained-model\", dest=\"trained_model\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--train-auc\", dest=\"train_auc\", type=float, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--test-set\", dest=\"test_set\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--threshold\", dest=\"threshold\", type=float, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--deploy\", dest=\"deploy\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\", dest=\"_output_paths\", type=str, nargs=2)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = model_evaluation(**_parsed_args)\n\n_output_serializers = [\n    _serialize_str,\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+            ],
+            "image": "gcr.io/pacific-torus-347809/mle-fp/base:latest"
+          }
+        },
+        "exec-predict": {
+          "container": {
+            "args": [
+              "--model-input-file",
+              "{{$.inputs.parameters['model_input_file']}}",
+              "--serving-container-image-uri",
+              "{{$.inputs.parameters['serving_container_image_uri']}}",
+              "--project-id",
+              "{{$.inputs.parameters['project_id']}}",
+              "--region",
+              "{{$.inputs.parameters['region']}}"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'pandas' 'gcsfs' 'fsspec' 'sklearn' 'xgboost' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'pandas' 'gcsfs' 'fsspec' 'sklearn' 'xgboost' --user) && \"$0\" \"$@\"",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "def predict(\n        model_input_file,\n        serving_container_image_uri,\n        project_id,\n        region\n):\n\n    from google.cloud import aiplatform\n    aiplatform.init(project=project_id, location=region)\n\n    DISPLAY_NAME  = \"Credit-Card-Default-Check-RF3\"\n    MODEL_NAME = \"CCD-RF3\"\n    ENDPOINT_NAME = \"Credit-Card-Default-Check-Endpoint3\"\n\n    def create_endpoint():\n        endpoints = aiplatform.Endpoint.list(\n            filter='display_name=\"{}\"'.format(ENDPOINT_NAME),\n            order_by='create_time desc',\n            project=project_id,\n            location=region,\n        )\n        if len(endpoints) > 0:\n            endpoint = endpoints[0]\n        else:\n            endpoint = aiplatform.Endpoint.create(\n                display_name=ENDPOINT_NAME, project=project_id, location=region\n            )\n        return endpoint\n\n    endpoint = create_endpoint()\n\n    model_upload = aiplatform.Model.upload(\n        display_name = DISPLAY_NAME,\n        artifact_uri = model_input_file,\n        serving_container_image_uri =  serving_container_image_uri,\n        serving_container_health_route=f\"/v1/models/{MODEL_NAME}\",\n        serving_container_predict_route=f\"/v1/models/{MODEL_NAME}:predict\",\n        serving_container_environment_variables={\n        \"MODEL_NAME\": MODEL_NAME,\n        })\n\n    model_deploy = model_upload.deploy(\n        machine_type=\"n1-standard-4\",\n        endpoint=endpoint,\n        traffic_split={\"0\": 100},\n        deployed_model_display_name=DISPLAY_NAME,\n    )\n\n    #vertex_model.uri = model_deploy.resource_name\n    # from collections import namedtuple\n    #\n    # results = namedtuple(\"outputs\", [\"train_data\", \"test_data\"])\n    #\n    # return results(train, test)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Predict', description='')\n_parser.add_argument(\"--model-input-file\", dest=\"model_input_file\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--serving-container-image-uri\", dest=\"serving_container_image_uri\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--project-id\", dest=\"project_id\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--region\", dest=\"region\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs = predict(**_parsed_args)\n"
+            ],
+            "image": "gcr.io/pacific-torus-347809/mle-fp/base:latest"
+          }
+        },
+        "exec-predict-2": {
+          "container": {
+            "args": [
+              "--model-input-file",
+              "{{$.inputs.parameters['model_input_file']}}",
+              "--serving-container-image-uri",
+              "{{$.inputs.parameters['serving_container_image_uri']}}",
+              "--project-id",
+              "{{$.inputs.parameters['project_id']}}",
+              "--region",
+              "{{$.inputs.parameters['region']}}"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'pandas' 'gcsfs' 'fsspec' 'sklearn' 'xgboost' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'pandas' 'gcsfs' 'fsspec' 'sklearn' 'xgboost' --user) && \"$0\" \"$@\"",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "def predict(\n        model_input_file,\n        serving_container_image_uri,\n        project_id,\n        region\n):\n\n    from google.cloud import aiplatform\n    aiplatform.init(project=project_id, location=region)\n\n    DISPLAY_NAME  = \"Credit-Card-Default-Check-RF3\"\n    MODEL_NAME = \"CCD-RF3\"\n    ENDPOINT_NAME = \"Credit-Card-Default-Check-Endpoint3\"\n\n    def create_endpoint():\n        endpoints = aiplatform.Endpoint.list(\n            filter='display_name=\"{}\"'.format(ENDPOINT_NAME),\n            order_by='create_time desc',\n            project=project_id,\n            location=region,\n        )\n        if len(endpoints) > 0:\n            endpoint = endpoints[0]\n        else:\n            endpoint = aiplatform.Endpoint.create(\n                display_name=ENDPOINT_NAME, project=project_id, location=region\n            )\n        return endpoint\n\n    endpoint = create_endpoint()\n\n    model_upload = aiplatform.Model.upload(\n        display_name = DISPLAY_NAME,\n        artifact_uri = model_input_file,\n        serving_container_image_uri =  serving_container_image_uri,\n        serving_container_health_route=f\"/v1/models/{MODEL_NAME}\",\n        serving_container_predict_route=f\"/v1/models/{MODEL_NAME}:predict\",\n        serving_container_environment_variables={\n        \"MODEL_NAME\": MODEL_NAME,\n        })\n\n    model_deploy = model_upload.deploy(\n        machine_type=\"n1-standard-4\",\n        endpoint=endpoint,\n        traffic_split={\"0\": 100},\n        deployed_model_display_name=DISPLAY_NAME,\n    )\n\n    #vertex_model.uri = model_deploy.resource_name\n    # from collections import namedtuple\n    #\n    # results = namedtuple(\"outputs\", [\"train_data\", \"test_data\"])\n    #\n    # return results(train, test)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Predict', description='')\n_parser.add_argument(\"--model-input-file\", dest=\"model_input_file\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--serving-container-image-uri\", dest=\"serving_container_image_uri\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--project-id\", dest=\"project_id\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--region\", dest=\"region\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs = predict(**_parsed_args)\n"
+            ],
+            "image": "gcr.io/pacific-torus-347809/mle-fp/base:latest"
+          }
+        },
+        "exec-tfdv-detect-drift": {
+          "container": {
+            "args": [
+              "--stats-older-path",
+              "{{$.inputs.parameters['stats_older_path']}}",
+              "--stats-new-path",
+              "{{$.inputs.parameters['stats_new_path']}}",
+              "--target-feature",
+              "{{$.inputs.parameters['target_feature']}}",
+              "----output-paths",
+              "{{$.outputs.parameters['drift'].output_file}}"
+            ],
+            "command": [
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "def tfdv_detect_drift(\n    stats_older_path, stats_new_path, target_feature\n):\n\n    import logging\n    import time\n\n    import tensorflow_data_validation as tfdv\n    import tensorflow_data_validation.statistics.stats_impl\n\n    logging.getLogger().setLevel(logging.INFO)\n    logging.info('stats_older_path: %s', stats_older_path)\n    logging.info('stats_new_path: %s', stats_new_path)\n\n    # if there are no older stats to compare with, just return 'true'\n    if stats_older_path == 'none':\n        return ('true', )\n\n    stats1 = tfdv.load_statistics(stats_older_path)\n    stats2 = tfdv.load_statistics(stats_new_path)\n\n    schema1 = tfdv.infer_schema(statistics=stats1)\n\n    tfdv.get_feature(schema1, target_feature).drift_comparator.jensen_shannon_divergence.threshold = 0.01\n\n    drift_anomalies = tfdv.validate_statistics(\n        statistics=stats2, schema=schema1, previous_statistics=stats1)\n    logging.info('drift analysis results: %s', drift_anomalies.drift_skew_info)\n\n    from google.protobuf.json_format import MessageToDict\n\n    d = MessageToDict(drift_anomalies)\n\n    val = d['driftSkewInfo'][0]['driftMeasurements'][0]['value']\n\n    thresh = d['driftSkewInfo'][0]['driftMeasurements'][0]['threshold']\n    logging.info('value %s and threshold %s', val, thresh)\n\n    res = 'true'\n\n    if val < thresh:\n        res = 'true'\n    logging.info(f'train decision: {res}')\n    return (res, )\n\ndef _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of str.'.format(\n            str(str_value), str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Tfdv detect drift', description='')\n_parser.add_argument(\"--stats-older-path\", dest=\"stats_older_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--stats-new-path\", dest=\"stats_new_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--target-feature\", dest=\"target_feature\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\", dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = tfdv_detect_drift(**_parsed_args)\n\n_output_serializers = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+            ],
+            "image": "gcr.io/pacific-torus-347809/mle-fp/preprocessing:v1"
+          }
+        },
+        "exec-tfdv-generate-statistics": {
+          "container": {
+            "args": [
+              "--input-data",
+              "{{$.inputs.parameters['input_data']}}",
+              "--output-path",
+              "{{$.inputs.parameters['output_path']}}",
+              "--job-name",
+              "{{$.inputs.parameters['job_name']}}",
+              "--use-dataflow",
+              "{{$.inputs.parameters['use_dataflow']}}",
+              "--project-id",
+              "{{$.inputs.parameters['project_id']}}",
+              "--region",
+              "{{$.inputs.parameters['region']}}",
+              "--gcs-temp-location",
+              "{{$.inputs.parameters['gcs_temp_location']}}",
+              "--gcs-staging-location",
+              "{{$.inputs.parameters['gcs_staging_location']}}",
+              "--whl-location",
+              "{{$.inputs.parameters['whl_location']}}",
+              "----output-paths",
+              "{{$.outputs.parameters['stats_path'].output_file}}",
+              "{{$.outputs.parameters['first_time'].output_file}}",
+              "{{$.outputs.parameters['model_exists'].output_file}}"
+            ],
+            "command": [
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "def tfdv_generate_statistics(\n    input_data, \n    output_path, \n    job_name, \n    use_dataflow,\n    project_id, \n    region, \n    gcs_temp_location, \n    gcs_staging_location,\n    whl_location = '', \n):\n\n    import logging\n    import os\n    import time\n    from google.cloud import storage\n\n    import tensorflow_data_validation as tfdv\n    import tensorflow_data_validation.statistics.stats_impl\n    from apache_beam.options.pipeline_options import (GoogleCloudOptions,\n                                                      PipelineOptions,\n                                                      SetupOptions,\n                                                      StandardOptions)\n\n    os.environ[\"GOOGLE_APPLICATION_CREDENTIALS\"] = \"pacific-torus.json\"\n\n    logging.getLogger().setLevel(logging.INFO)\n    logging.info(\"output path: %s\", output_path)\n    logging.info(\"Building pipeline options\")\n\n    # Create and set your PipelineOptions.\n    options = PipelineOptions()\n\n    if use_dataflow == 'true':\n        logging.info(\"using Dataflow\")\n        if not whl_location:\n            logging.warning('tfdv whl file required with dataflow runner.')\n            exit(1)\n        google_cloud_options = options.view_as(GoogleCloudOptions)\n        google_cloud_options.project = project_id\n        google_cloud_options.job_name = '{}-{}'.format(job_name, str(int(time.time())))\n        google_cloud_options.staging_location = gcs_staging_location\n        google_cloud_options.temp_location = gcs_temp_location\n        google_cloud_options.region = region\n        options.view_as(StandardOptions).runner = 'DataflowRunner'\n\n        setup_options = options.view_as(SetupOptions)\n        setup_options.extra_packages = [whl_location]\n\n    stats_loc = \"gs://mle-dwh-torus/stats/evaltest.pb\"\n    stats_bucket = stats_loc.split(\"/\")[2]\n    file_name = \"/\".join(stats_loc.split(\"/\")[3:])\n\n    client = storage.Client()\n    bucket = client.bucket(stats_bucket)\n    file_exists = storage.Blob(bucket=bucket, name=file_name).exists(client)\n\n    model_exists = storage.Blob(bucket=bucket, name='models/deployed/model.pkl').exists(client)\n\n    if not file_exists:\n        output_path = stats_loc\n        first_time = True\n    else:\n        first_time = False\n\n    tfdv.generate_statistics_from_csv(\n        data_location=input_data, \n        output_path=output_path,\n        pipeline_options=options)\n\n    from collections import namedtuple\n\n    results = namedtuple(\"outputs\", [\"stats_path\", 'first_time', 'model_exists'])\n\n    return results(output_path, first_time, model_exists)\n\ndef _serialize_bool(bool_value: bool) -> str:\n    if isinstance(bool_value, str):\n        return bool_value\n    if not isinstance(bool_value, bool):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of bool.'.format(\n            str(bool_value), str(type(bool_value))))\n    return str(bool_value)\n\ndef _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of str.'.format(\n            str(str_value), str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Tfdv generate statistics', description='')\n_parser.add_argument(\"--input-data\", dest=\"input_data\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--output-path\", dest=\"output_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--job-name\", dest=\"job_name\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--use-dataflow\", dest=\"use_dataflow\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--project-id\", dest=\"project_id\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--region\", dest=\"region\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--gcs-temp-location\", dest=\"gcs_temp_location\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--gcs-staging-location\", dest=\"gcs_staging_location\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--whl-location\", dest=\"whl_location\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\", dest=\"_output_paths\", type=str, nargs=3)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = tfdv_generate_statistics(**_parsed_args)\n\n_output_serializers = [\n    _serialize_str,\n    _serialize_bool,\n    _serialize_bool,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+            ],
+            "image": "gcr.io/pacific-torus-347809/mle-fp/preprocessing:v1"
+          }
+        },
+        "exec-train-hptune": {
+          "container": {
+            "args": [
+              "--train-file",
+              "{{$.inputs.parameters['train_file']}}",
+              "----output-paths",
+              "{{$.outputs.parameters['model_path'].output_file}}",
+              "{{$.outputs.parameters['train_auc'].output_file}}"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'xgboost' 'gcsfs' 'sklearn' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'xgboost' 'gcsfs' 'sklearn' --user) && \"$0\" \"$@\"",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "def train_hptune(\n        train_file,\n):\n    from xgboost import XGBClassifier\n    from sklearn.model_selection import RandomizedSearchCV\n    from sklearn.ensemble import RandomForestClassifier\n    from sklearn.metrics import roc_auc_score\n    from datetime import datetime\n    from google.cloud import storage\n    import pandas as pd\n    import os\n    import pickle\n\n    train_df = pd.read_csv(train_file)\n\n    PARAMS = {\n        'n_estimators': [200, 300, 400],\n    }\n\n    # XGB = XGBClassifier()\n    PARAM_COMB = 2\n\n    random_search = RandomizedSearchCV(RandomForestClassifier(),\n                                       param_distributions=PARAMS,\n                                       n_iter=PARAM_COMB,\n                                       scoring='accuracy',\n                                       verbose=2,\n                                       random_state=2022\n                                       )\n\n    random_search.fit(train_df.drop(columns=[\"target\"]), train_df.target)\n\n    best_params = random_search.best_params_\n\n    # xg_model = XGBClassifier(**best_params)\n    xg_model = RandomForestClassifier(**best_params)\n\n    X = train_df.drop(['target'], axis = 1)\n    Y = train_df['target']\n    xg_model.fit(X, Y)\n\n    y_prob = xg_model.predict_proba(X)[:, 1]\n    train_auc = roc_auc_score(Y, y_prob)\n\n    model_output_path = \"gs://mle-dwh-torus/models/\"\n    model_id = datetime.now().strftime(f\"%d%H%M\")\n    model_filename = f'model_{model_id}.pkl'\n    local_path = model_filename\n\n    with open(local_path, 'wb') as model_file:\n        pickle.dump(xg_model, model_file)\n\n    storage_path = os.path.join(model_output_path, model_filename)\n    blob = storage.blob.Blob.from_string(storage_path, client = storage.Client())\n    blob.upload_from_filename(local_path)\n\n    from collections import namedtuple\n    results = namedtuple(\"outputs\", [\"model_path\", \"train_auc\"])\n    return results(storage_path, train_auc)\n\ndef _serialize_float(float_value: float) -> str:\n    if isinstance(float_value, str):\n        return float_value\n    if not isinstance(float_value, (float, int)):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of float.'.format(\n            str(float_value), str(type(float_value))))\n    return str(float_value)\n\ndef _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of str.'.format(\n            str(str_value), str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Train hptune', description='')\n_parser.add_argument(\"--train-file\", dest=\"train_file\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\", dest=\"_output_paths\", type=str, nargs=2)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = train_hptune(**_parsed_args)\n\n_output_serializers = [\n    _serialize_str,\n    _serialize_float,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+            ],
+            "image": "gcr.io/pacific-torus-347809/mle-fp/base:latest"
+          }
+        },
+        "exec-train-test-split": {
+          "container": {
+            "args": [
+              "--input-file",
+              "{{$.inputs.parameters['input_file']}}",
+              "--output-bucket",
+              "{{$.inputs.parameters['output_bucket']}}",
+              "----output-paths",
+              "{{$.outputs.parameters['train_data'].output_file}}",
+              "{{$.outputs.parameters['test_data'].output_file}}"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'fsspec' 'gcsfs' 'sklearn' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'fsspec' 'gcsfs' 'sklearn' --user) && \"$0\" \"$@\"",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "def train_test_split(\n    input_file,\n    output_bucket,\n):\n\n    import pandas as pd\n    from sklearn.model_selection import train_test_split\n\n    df = pd.read_csv(input_file)\n    train, test = train_test_split(df, test_size=0.2, random_state=2022)\n\n    output_train_path = f\"gs://mle-dwh-torus/{output_bucket}/train.csv\"\n    output_test_path = f\"gs://mle-dwh-torus/{output_bucket}/test.csv\" \n\n    train.to_csv(output_train_path, index = False)\n    test.to_csv(output_test_path, index = False)\n\n    from collections import namedtuple\n\n    results = namedtuple(\"outputs\", [\"train_data\", \"test_data\"])\n\n    return results(output_train_path, output_test_path)\n\ndef _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of str.'.format(\n            str(str_value), str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Train test split', description='')\n_parser.add_argument(\"--input-file\", dest=\"input_file\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--output-bucket\", dest=\"output_bucket\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\", dest=\"_output_paths\", type=str, nargs=2)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = train_test_split(**_parsed_args)\n\n_output_serializers = [\n    _serialize_str,\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+            ],
+            "image": "gcr.io/pacific-torus-347809/mle-fp/base:latest"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "ccd-train-pipeline"
+    },
+    "root": {
+      "dag": {
+        "tasks": {
+          "basic-preprocessing": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-basic-preprocessing"
+            },
+            "dependentTasks": [
+              "bq-extract-data"
+            ],
+            "inputs": {
+              "parameters": {
+                "input_file": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "dataset_gcs_uri",
+                    "producerTask": "bq-extract-data"
+                  }
+                },
+                "output_bucket": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "int"
+                    }
+                  }
+                },
+                "output_file": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "ccd2_int.csv"
+                    }
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "basic-preprocessing"
+            }
+          },
+          "bq-extract-data": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-bq-extract-data"
+            },
+            "inputs": {
+              "parameters": {
+                "dataset_location": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "US"
+                    }
+                  }
+                },
+                "destination_bucket": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "mle-dwh-torus"
+                    }
+                  }
+                },
+                "destination_file": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "raw/new_ccd_test_02.csv"
+                    }
+                  }
+                },
+                "destination_project_id": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "pacific-torus-347809"
+                    }
+                  }
+                },
+                "extract_job_config": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "{}"
+                    }
+                  }
+                },
+                "source_project_id": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "pacific-torus-347809"
+                    }
+                  }
+                },
+                "source_table_url": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "dwh_pacific_torus.credit_card_defaults"
+                    }
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "bq-extract-data"
+            }
+          },
+          "condition-1": {
+            "componentRef": {
+              "name": "comp-condition-1"
+            },
+            "dependentTasks": [
+              "basic-preprocessing",
+              "tfdv-detect-drift"
+            ],
+            "inputs": {
+              "parameters": {
+                "pipelineparam--basic-preprocessing-Output": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "Output",
+                    "producerTask": "basic-preprocessing"
+                  }
+                },
+                "pipelineparam--tfdv-detect-drift-drift": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "drift",
+                    "producerTask": "tfdv-detect-drift"
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "condition-1"
+            },
+            "triggerPolicy": {
+              "condition": "inputs.parameters['pipelineparam--tfdv-detect-drift-drift'].string_value == 'true'"
+            }
+          },
+          "condition-3": {
+            "componentRef": {
+              "name": "comp-condition-3"
+            },
+            "dependentTasks": [
+              "tfdv-detect-drift"
+            ],
+            "inputs": {
+              "parameters": {
+                "pipelineparam--tfdv-detect-drift-drift": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "drift",
+                    "producerTask": "tfdv-detect-drift"
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "condition-3"
+            },
+            "triggerPolicy": {
+              "condition": "inputs.parameters['pipelineparam--tfdv-detect-drift-drift'].string_value == 'false'"
+            }
+          },
+          "tfdv-detect-drift": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-tfdv-detect-drift"
+            },
+            "dependentTasks": [
+              "tfdv-generate-statistics"
+            ],
+            "inputs": {
+              "parameters": {
+                "stats_new_path": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "stats_path",
+                    "producerTask": "tfdv-generate-statistics"
+                  }
+                },
+                "stats_older_path": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "gs://mle-dwh-torus/stats/evaltest.pb"
+                    }
+                  }
+                },
+                "target_feature": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "limit_bal"
+                    }
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "tfdv-detect-drift"
+            }
+          },
+          "tfdv-generate-statistics": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-tfdv-generate-statistics"
+            },
+            "dependentTasks": [
+              "basic-preprocessing"
+            ],
+            "inputs": {
+              "parameters": {
+                "gcs_staging_location": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "gs://mle-dwh-torus/tfdv_expers"
+                    }
+                  }
+                },
+                "gcs_temp_location": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "gs://mle-dwh-torus/tfdv_expers/tmp"
+                    }
+                  }
+                },
+                "input_data": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "Output",
+                    "producerTask": "basic-preprocessing"
+                  }
+                },
+                "job_name": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "test-1"
+                    }
+                  }
+                },
+                "output_path": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "gs://mle-dwh-torus/tfdv_expers/eval/evaltest.pb"
+                    }
+                  }
+                },
+                "project_id": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "pacific-torus-347809"
+                    }
+                  }
+                },
+                "region": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "asia-southeast1-c"
+                    }
+                  }
+                },
+                "use_dataflow": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "False"
+                    }
+                  }
+                },
+                "whl_location": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "tensorflow_data_validation-0.26.0-cp37-cp37m-manylinux2010_x86_64.whl"
+                    }
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "tfdv-generate-statistics"
+            }
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.8.12"
+  },
+  "runtimeConfig": {
+    "gcsOutputDirectory": "gs://mle-dwh-torus/pipeline/"
+  }
+}
