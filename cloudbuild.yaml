@@ -15,6 +15,7 @@ steps:
 #   - "-c"
 #   - |
 #     echo "Docker Container Built And Pushed"  
+
 - name: 'gcr.io/cloud-builders/gcloud'
   args: ['make', 'test_components']
   timeout: 180s
