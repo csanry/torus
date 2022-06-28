@@ -12,7 +12,7 @@ outputs:
 - {name: dataset_gcs_directory, type: String}
 implementation:
   container:
-    image: gcr.io/pacific-torus-347809/mle-fp/base:latest
+    image: gcr.io/pacific-torus-347809/mle-fp/ingest:latest
     command:
     - sh
     - -ec
@@ -20,12 +20,12 @@ implementation:
       program_path=$(mktemp)
       printf "%s" "$0" > "$program_path"
       python3 -u "$program_path" "$@"
-    - "from typing import NamedTuple\n\ndef bq_extract_data(\n    source_project_id,\n\
-      \    source_table_url,\n    destination_project_id,\n    destination_bucket,\
-      \ \n    destination_file,\n    dataset_location,\n    extract_job_config = None,\n\
-      ):\n\n    import logging\n    import os\n\n    from google.cloud import bigquery,\
-      \ storage\n    from google.cloud.exceptions import GoogleCloudError\n\n    os.environ[\"\
-      GOOGLE_APPLICATION_CREDENTIALS\"] = \"pacific-torus.json\"\n\n    # logging.config.fileConfig(LOGGING_CONF)\n\
+    - "def bq_extract_data(\n    source_project_id,\n    source_table_url,\n    destination_project_id,\n\
+      \    destination_bucket, \n    destination_file,\n    dataset_location,\n  \
+      \  extract_job_config = None,\n):\n\n    import logging\n    import os\n\n \
+      \   from google.cloud import bigquery, storage\n    from google.cloud.exceptions\
+      \ import GoogleCloudError\n\n    os.environ[\"GOOGLE_APPLICATION_CREDENTIALS\"\
+      ] = \"pacific-torus.json\"\n\n    # logging.config.fileConfig(LOGGING_CONF)\n\
       \    logger = logging.getLogger(\"root\")\n\n    storage_client = storage.Client(project=destination_project_id)\n\
       \n    if not storage.Bucket(storage_client, destination_bucket).exists():\n\
       \        bucket = storage_client.bucket(destination_bucket)\n        bucket.storage_class\
