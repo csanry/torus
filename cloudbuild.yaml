@@ -9,12 +9,12 @@ steps:
   timeout: 180s
   id: "Push Base Image"
   
-- name: 'gcr.io/cloud-builders/gcloud'
-  entrypoint: "bash"
-  args:
-  - "-c"
-  - |
-    echo "Docker Container Built And Pushed"  
+# - name: 'gcr.io/cloud-builders/gcloud'
+#   entrypoint: "bash"
+#   args:
+#   - "-c"
+#   - |
+#     echo "Docker Container Built And Pushed"  
  - name: 'gcr.io/cloud-builders/gcloud'
   entrypoint: "bash"
   args: ['make', 'test_components']
