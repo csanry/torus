@@ -4,7 +4,7 @@ from typing import NamedTuple
 import google.cloud.aiplatform as aip
 from kfp.v2 import compiler, dsl
 from kfp.v2.dsl import Artifact, Dataset, Input, Output, OutputPath, component
-from sqlalchemy import outparam
+# from sqlalchemy import outparam
 
 import kfp
 
@@ -12,17 +12,17 @@ PIPELINE_ROOT = "{}/pipeline/".format("gs://mle-dwh-torus")
 
 aip.init(project="pacific-torus-347809", staging_bucket="gs://mle-dwh-torus")
 
-ingest_op = kfp.components.load_component_from_file("./kfp_components/ingest/ingest_component.yaml")
-tfdv_op = kfp.components.load_component_from_file("./kfp_components/preprocessing/tfdv_generate_statistics_component.yaml")
+ingest_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/build_updates/pipelines/kfp_components/ingest/ingest_component.yaml")
+tfdv_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/build_updates/pipelines/kfp_components/preprocessing/tfdv_generate_statistics_component.yaml")
 
-tfdv_drift_op = kfp.components.load_component_from_file("./kfp_components/preprocessing/tfdv_detect_drift_component.yaml")
+tfdv_drift_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/build_updates/pipelines/kfp_components/preprocessing/tfdv_detect_drift_component.yaml")
 
-basic_preprocessing_op = kfp.components.load_component_from_file("./kfp_components/preprocessing/basic_preprocessing_component.yaml")
-train_test_split_data_op = kfp.components.load_component_from_file("./kfp_components/training/train_test_split_data_component.yaml")
+basic_preprocessing_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/build_updates/pipelines/kfp_components/preprocessing/basic_preprocessing_component.yaml")
+train_test_split_data_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/build_updates/pipelines/kfp_components/training/train_test_split_data_component.yaml")
 
-train_tune_op = kfp.components.load_component_from_file("./kfp_components/training/train_hptune.yaml")
-model_evaluation_op = kfp.components.load_component_from_file("./kfp_components/training/model_evaluation.yaml")
-deploy_op = kfp.components.load_component_from_file("./kfp_components/prediction/predict.yaml")
+train_tune_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/build_updates/pipelines/kp_components/training/train_hptune.yaml")
+model_evaluation_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/build_updates/pipelines/kfp_components/training/model_evaluation.yaml")
+deploy_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/build_updates/pipelines/kfp_components/prediction/predict.yaml")
 
 
 # Define the pipeline
