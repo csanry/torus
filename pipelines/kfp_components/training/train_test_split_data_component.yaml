@@ -26,9 +26,9 @@ implementation:
       \    df = pd.read_csv(input_file)\n    train, test = train_test_split(df, test_size=0.2,\
       \ random_state=2022)\n\n    output_train_path = f\"gs://mle-dwh-torus/{output_bucket}/train.csv\"\
       \n    output_test_path = f\"gs://mle-dwh-torus/{output_bucket}/test.csv\" \n\
-      \n    train.to_csv(output_train_path)\n    test.to_csv(output_test_path)\n\n\
-      \    from collections import namedtuple\n\n    results = namedtuple(\"outputs\"\
-      , [\"train_data\", \"test_data\"])\n\n    return results(output_train_path,\
+      \n    train.to_csv(output_train_path, index = False)\n    test.to_csv(output_test_path,\
+      \ index = False)\n\n    from collections import namedtuple\n\n    results =\
+      \ namedtuple(\"outputs\", [\"train_data\", \"test_data\"])\n\n    return results(output_train_path,\
       \ output_test_path)\n\ndef _serialize_str(str_value: str) -> str:\n    if not\
       \ isinstance(str_value, str):\n        raise TypeError('Value \"{}\" has type\
       \ \"{}\" instead of str.'.format(\n            str(str_value), str(type(str_value))))\n\

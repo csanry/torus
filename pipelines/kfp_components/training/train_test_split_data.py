@@ -21,8 +21,8 @@ def train_test_split(
     output_train_path = f"gs://mle-dwh-torus/{output_bucket}/train.csv"
     output_test_path = f"gs://mle-dwh-torus/{output_bucket}/test.csv" 
 
-    train.to_csv(output_train_path)
-    test.to_csv(output_test_path)
+    train.to_csv(output_train_path, index = False)
+    test.to_csv(output_test_path, index = False)
 
     from collections import namedtuple
 

@@ -70,31 +70,40 @@ def xgboost_test_pipeline(
         target_feature="limit_bal"
     )
 
-    train_test_split_data = train_test_split_data_op(
-            input_file=basic_preprocessing.output,
-            output_bucket="fin"
+    with dsl.Condition(tfdv_drift.outputs['drift']=='true'):
+        train_test_split_data = train_test_split_data_op(
+                input_file=basic_preprocessing.output,
+                output_bucket="fin"
+            )
+
+        train_tune = train_tune_op(
+            train_file = train_test_split_data.outputs['train_data']
         )
 
-    train_tune = train_tune_op(
-        train_file = train_test_split_data.outputs['train_data']
-    )
+        model_eval = model_evaluation_op(
+            trained_model = train_tune.outputs['model_path'],
+            train_auc = train_tune.outputs['train_auc'],
+            test_set = train_test_split_data.outputs['test_data'],
+            threshold = 0.6
+        )
 
-    model_eval = model_evaluation_op(
-        trained_model = train_tune.outputs['model_path'],
-        train_auc = train_tune.outputs['train_auc'],
-        test_set = train_test_split_data.outputs['test_data'],
-        threshold = 0.6
-    )
-
-    
-    with dsl.Condition(model_eval.outputs['deploy'] == "True"):
+        with dsl.Condition(model_eval.outputs['deploy'] == "True"):
+            deploy = deploy_op(
+                # model_input_file = model_eval.outputs['evaluated_model'],
+                model_input_file = 	'gs://mle-dwh-torus/models/',
+                serving_container_image_uri = "us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest",
+                project_id= 'pacific-torus-347809',
+                region = 'us-central1'
+            )
+            
+    with dsl.Condition(tfdv_drift.outputs['drift']=='false'):
         deploy = deploy_op(
-            # model_input_file = model_eval.outputs['evaluated_model'],
-            model_input_file = 	'gs://mle-dwh-torus/models/',
-            serving_container_image_uri = "us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest",
-            project_id= 'pacific-torus-347809',
-            region = 'us-central1'
-        )
+                    # model_input_file = model_eval.outputs['evaluated_model'],
+                    model_input_file = 	'gs://mle-dwh-torus/models/',
+                    serving_container_image_uri = "us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest",
+                    project_id= 'pacific-torus-347809',
+                    region = 'us-central1'
+                )
 
 if __name__ == "__main__": 
     from datetime import datetime

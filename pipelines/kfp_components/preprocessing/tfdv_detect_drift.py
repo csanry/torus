@@ -42,7 +42,7 @@ def tfdv_detect_drift(
     res = 'true'
     
     if val < thresh:
-        res = 'true'
+        res = 'false'
     logging.info(f'train decision: {res}')
     return (res, )
 

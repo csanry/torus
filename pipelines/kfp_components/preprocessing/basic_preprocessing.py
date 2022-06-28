@@ -30,7 +30,6 @@ def basic_preprocessing(
 
     return output_path
 
-
 import kfp
 
 kfp.components.func_to_container_op(

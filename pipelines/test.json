@@ -65,6 +65,149 @@
       "comp-condition-1": {
         "dag": {
           "tasks": {
+            "condition-2": {
+              "componentRef": {
+                "name": "comp-condition-2"
+              },
+              "dependentTasks": [
+                "model-evaluation"
+              ],
+              "inputs": {
+                "parameters": {
+                  "pipelineparam--model-evaluation-deploy": {
+                    "taskOutputParameter": {
+                      "outputParameterKey": "deploy",
+                      "producerTask": "model-evaluation"
+                    }
+                  },
+                  "pipelineparam--tfdv-detect-drift-drift": {
+                    "componentInputParameter": "pipelineparam--tfdv-detect-drift-drift"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "condition-2"
+              },
+              "triggerPolicy": {
+                "condition": "inputs.parameters['pipelineparam--model-evaluation-deploy'].string_value == 'True'"
+              }
+            },
+            "model-evaluation": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-model-evaluation"
+              },
+              "dependentTasks": [
+                "train-hptune",
+                "train-test-split"
+              ],
+              "inputs": {
+                "parameters": {
+                  "deploy": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": "False"
+                      }
+                    }
+                  },
+                  "test_set": {
+                    "taskOutputParameter": {
+                      "outputParameterKey": "test_data",
+                      "producerTask": "train-test-split"
+                    }
+                  },
+                  "threshold": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "doubleValue": 0.6
+                      }
+                    }
+                  },
+                  "train_auc": {
+                    "taskOutputParameter": {
+                      "outputParameterKey": "train_auc",
+                      "producerTask": "train-hptune"
+                    }
+                  },
+                  "trained_model": {
+                    "taskOutputParameter": {
+                      "outputParameterKey": "model_path",
+                      "producerTask": "train-hptune"
+                    }
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "model-evaluation"
+              }
+            },
+            "train-hptune": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-train-hptune"
+              },
+              "dependentTasks": [
+                "train-test-split"
+              ],
+              "inputs": {
+                "parameters": {
+                  "train_file": {
+                    "taskOutputParameter": {
+                      "outputParameterKey": "train_data",
+                      "producerTask": "train-test-split"
+                    }
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "train-hptune"
+              }
+            },
+            "train-test-split": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-train-test-split"
+              },
+              "inputs": {
+                "parameters": {
+                  "input_file": {
+                    "componentInputParameter": "pipelineparam--basic-preprocessing-Output"
+                  },
+                  "output_bucket": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": "fin"
+                      }
+                    }
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "train-test-split"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--basic-preprocessing-Output": {
+              "type": "STRING"
+            },
+            "pipelineparam--tfdv-detect-drift-drift": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-condition-2": {
+        "dag": {
+          "tasks": {
             "predict": {
               "cachingOptions": {
                 "enableCache": true
@@ -114,6 +257,65 @@
           "parameters": {
             "pipelineparam--model-evaluation-deploy": {
               "type": "STRING"
+            },
+            "pipelineparam--tfdv-detect-drift-drift": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-condition-3": {
+        "dag": {
+          "tasks": {
+            "predict-2": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-predict-2"
+              },
+              "inputs": {
+                "parameters": {
+                  "model_input_file": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": "gs://mle-dwh-torus/models/"
+                      }
+                    }
+                  },
+                  "project_id": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": "pacific-torus-347809"
+                      }
+                    }
+                  },
+                  "region": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": "us-central1"
+                      }
+                    }
+                  },
+                  "serving_container_image_uri": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": "us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest"
+                      }
+                    }
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "predict-2"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--tfdv-detect-drift-drift": {
+              "type": "STRING"
             }
           }
         }
@@ -152,6 +354,25 @@
       },
       "comp-predict": {
         "executorLabel": "exec-predict",
+        "inputDefinitions": {
+          "parameters": {
+            "model_input_file": {
+              "type": "STRING"
+            },
+            "project_id": {
+              "type": "STRING"
+            },
+            "region": {
+              "type": "STRING"
+            },
+            "serving_container_image_uri": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-predict-2": {
+        "executorLabel": "exec-predict-2",
         "inputDefinitions": {
           "parameters": {
             "model_input_file": {
@@ -392,6 +613,30 @@
             "image": "gcr.io/pacific-torus-347809/mle-fp/base:latest"
           }
         },
+        "exec-predict-2": {
+          "container": {
+            "args": [
+              "--model-input-file",
+              "{{$.inputs.parameters['model_input_file']}}",
+              "--serving-container-image-uri",
+              "{{$.inputs.parameters['serving_container_image_uri']}}",
+              "--project-id",
+              "{{$.inputs.parameters['project_id']}}",
+              "--region",
+              "{{$.inputs.parameters['region']}}"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'pandas' 'gcsfs' 'fsspec' 'sklearn' 'xgboost' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'pandas' 'gcsfs' 'fsspec' 'sklearn' 'xgboost' --user) && \"$0\" \"$@\"",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "def predict(\n        model_input_file,\n        serving_container_image_uri,\n        project_id,\n        region\n):\n\n    from google.cloud import aiplatform\n    aiplatform.init(project=project_id, location=region)\n\n    DISPLAY_NAME  = \"Credit-Card-Default-Check-RF3\"\n    MODEL_NAME = \"CCD-RF3\"\n    ENDPOINT_NAME = \"Credit-Card-Default-Check-Endpoint3\"\n\n    def create_endpoint():\n        endpoints = aiplatform.Endpoint.list(\n            filter='display_name=\"{}\"'.format(ENDPOINT_NAME),\n            order_by='create_time desc',\n            project=project_id,\n            location=region,\n        )\n        if len(endpoints) > 0:\n            endpoint = endpoints[0]\n        else:\n            endpoint = aiplatform.Endpoint.create(\n                display_name=ENDPOINT_NAME, project=project_id, location=region\n            )\n        return endpoint\n\n    endpoint = create_endpoint()\n\n    model_upload = aiplatform.Model.upload(\n        display_name = DISPLAY_NAME,\n        artifact_uri = model_input_file,\n        serving_container_image_uri =  serving_container_image_uri,\n        serving_container_health_route=f\"/v1/models/{MODEL_NAME}\",\n        serving_container_predict_route=f\"/v1/models/{MODEL_NAME}:predict\",\n        serving_container_environment_variables={\n        \"MODEL_NAME\": MODEL_NAME,\n        })\n\n    model_deploy = model_upload.deploy(\n        machine_type=\"n1-standard-4\",\n        endpoint=endpoint,\n        traffic_split={\"0\": 100},\n        deployed_model_display_name=DISPLAY_NAME,\n    )\n\n    #vertex_model.uri = model_deploy.resource_name\n    # from collections import namedtuple\n    #\n    # results = namedtuple(\"outputs\", [\"train_data\", \"test_data\"])\n    #\n    # return results(train, test)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Predict', description='')\n_parser.add_argument(\"--model-input-file\", dest=\"model_input_file\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--serving-container-image-uri\", dest=\"serving_container_image_uri\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--project-id\", dest=\"project_id\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--region\", dest=\"region\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs = predict(**_parsed_args)\n"
+            ],
+            "image": "gcr.io/pacific-torus-347809/mle-fp/base:latest"
+          }
+        },
         "exec-tfdv-detect-drift": {
           "container": {
             "args": [
@@ -487,7 +732,7 @@
               "sh",
               "-ec",
               "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
-              "def train_test_split(\n    input_file,\n    output_bucket,\n):\n\n    import pandas as pd\n    from sklearn.model_selection import train_test_split\n\n    df = pd.read_csv(input_file)\n    train, test = train_test_split(df, test_size=0.2, random_state=2022)\n\n    output_train_path = f\"gs://mle-dwh-torus/{output_bucket}/train.csv\"\n    output_test_path = f\"gs://mle-dwh-torus/{output_bucket}/test.csv\" \n\n    train.to_csv(output_train_path)\n    test.to_csv(output_test_path)\n\n    from collections import namedtuple\n\n    results = namedtuple(\"outputs\", [\"train_data\", \"test_data\"])\n\n    return results(output_train_path, output_test_path)\n\ndef _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of str.'.format(\n            str(str_value), str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Train test split', description='')\n_parser.add_argument(\"--input-file\", dest=\"input_file\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--output-bucket\", dest=\"output_bucket\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\", dest=\"_output_paths\", type=str, nargs=2)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = train_test_split(**_parsed_args)\n\n_output_serializers = [\n    _serialize_str,\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+              "def train_test_split(\n    input_file,\n    output_bucket,\n):\n\n    import pandas as pd\n    from sklearn.model_selection import train_test_split\n\n    df = pd.read_csv(input_file)\n    train, test = train_test_split(df, test_size=0.2, random_state=2022)\n\n    output_train_path = f\"gs://mle-dwh-torus/{output_bucket}/train.csv\"\n    output_test_path = f\"gs://mle-dwh-torus/{output_bucket}/test.csv\" \n\n    train.to_csv(output_train_path, index = False)\n    test.to_csv(output_test_path, index = False)\n\n    from collections import namedtuple\n\n    results = namedtuple(\"outputs\", [\"train_data\", \"test_data\"])\n\n    return results(output_train_path, output_test_path)\n\ndef _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of str.'.format(\n            str(str_value), str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Train test split', description='')\n_parser.add_argument(\"--input-file\", dest=\"input_file\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--output-bucket\", dest=\"output_bucket\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\", dest=\"_output_paths\", type=str, nargs=2)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = train_test_split(**_parsed_args)\n\n_output_serializers = [\n    _serialize_str,\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
             ],
             "image": "gcr.io/pacific-torus-347809/mle-fp/base:latest"
           }
@@ -607,14 +852,21 @@
               "name": "comp-condition-1"
             },
             "dependentTasks": [
-              "model-evaluation"
+              "basic-preprocessing",
+              "tfdv-detect-drift"
             ],
             "inputs": {
               "parameters": {
-                "pipelineparam--model-evaluation-deploy": {
+                "pipelineparam--basic-preprocessing-Output": {
                   "taskOutputParameter": {
-                    "outputParameterKey": "deploy",
-                    "producerTask": "model-evaluation"
+                    "outputParameterKey": "Output",
+                    "producerTask": "basic-preprocessing"
+                  }
+                },
+                "pipelineparam--tfdv-detect-drift-drift": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "drift",
+                    "producerTask": "tfdv-detect-drift"
                   }
                 }
               }
@@ -623,58 +875,31 @@
               "name": "condition-1"
             },
             "triggerPolicy": {
-              "condition": "inputs.parameters['pipelineparam--model-evaluation-deploy'].string_value == 'True'"
+              "condition": "inputs.parameters['pipelineparam--tfdv-detect-drift-drift'].string_value == 'true'"
             }
           },
-          "model-evaluation": {
-            "cachingOptions": {
-              "enableCache": true
-            },
+          "condition-3": {
             "componentRef": {
-              "name": "comp-model-evaluation"
+              "name": "comp-condition-3"
             },
             "dependentTasks": [
-              "train-hptune",
-              "train-test-split"
+              "tfdv-detect-drift"
             ],
             "inputs": {
               "parameters": {
-                "deploy": {
-                  "runtimeValue": {
-                    "constantValue": {
-                      "stringValue": "False"
-                    }
-                  }
-                },
-                "test_set": {
+                "pipelineparam--tfdv-detect-drift-drift": {
                   "taskOutputParameter": {
-                    "outputParameterKey": "test_data",
-                    "producerTask": "train-test-split"
-                  }
-                },
-                "threshold": {
-                  "runtimeValue": {
-                    "constantValue": {
-                      "doubleValue": 0.6
-                    }
-                  }
-                },
-                "train_auc": {
-                  "taskOutputParameter": {
-                    "outputParameterKey": "train_auc",
-                    "producerTask": "train-hptune"
-                  }
-                },
-                "trained_model": {
-                  "taskOutputParameter": {
-                    "outputParameterKey": "model_path",
-                    "producerTask": "train-hptune"
+                    "outputParameterKey": "drift",
+                    "producerTask": "tfdv-detect-drift"
                   }
                 }
               }
             },
             "taskInfo": {
-              "name": "model-evaluation"
+              "name": "condition-3"
+            },
+            "triggerPolicy": {
+              "condition": "inputs.parameters['pipelineparam--tfdv-detect-drift-drift'].string_value == 'false'"
             }
           },
           "tfdv-detect-drift": {
@@ -793,61 +1018,6 @@
             },
             "taskInfo": {
               "name": "tfdv-generate-statistics"
-            }
-          },
-          "train-hptune": {
-            "cachingOptions": {
-              "enableCache": true
-            },
-            "componentRef": {
-              "name": "comp-train-hptune"
-            },
-            "dependentTasks": [
-              "train-test-split"
-            ],
-            "inputs": {
-              "parameters": {
-                "train_file": {
-                  "taskOutputParameter": {
-                    "outputParameterKey": "train_data",
-                    "producerTask": "train-test-split"
-                  }
-                }
-              }
-            },
-            "taskInfo": {
-              "name": "train-hptune"
-            }
-          },
-          "train-test-split": {
-            "cachingOptions": {
-              "enableCache": true
-            },
-            "componentRef": {
-              "name": "comp-train-test-split"
-            },
-            "dependentTasks": [
-              "basic-preprocessing"
-            ],
-            "inputs": {
-              "parameters": {
-                "input_file": {
-                  "taskOutputParameter": {
-                    "outputParameterKey": "Output",
-                    "producerTask": "basic-preprocessing"
-                  }
-                },
-                "output_bucket": {
-                  "runtimeValue": {
-                    "constantValue": {
-                      "stringValue": "fin"
-                    }
-                  }
-                }
-              }
-            },
-            "taskInfo": {
-              "name": "train-test-split"
             }
           }
         }
