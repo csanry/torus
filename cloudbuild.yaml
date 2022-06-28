@@ -23,7 +23,7 @@ steps:
 #   entrypoint: "bash"
 #   args:
 #   - "-c"
-#   - |
+#   - | 
 #     echo "Docker Container Built And Pushed"  
 
 # - name: 'gcr.io/$PROJECT_ID/mle-fp/base:latest'
