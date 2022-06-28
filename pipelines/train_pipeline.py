@@ -20,7 +20,7 @@ tfdv_drift_op = kfp.components.load_component_from_url("https://raw.githubuserco
 basic_preprocessing_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/build_updates_v2/pipelines/kfp_components/preprocessing/basic_preprocessing_component.yaml")
 train_test_split_data_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/build_updates_v2/pipelines/kfp_components/training/train_test_split_data_component.yaml")
 
-train_tune_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/build_updates_v2/pipelines/kp_components/training/train_hptune.yaml")
+train_tune_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/build_updates_v2/pipelines/kfp_components/training/train_hptune.yaml")
 model_evaluation_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/build_updates_v2/pipelines/kfp_components/training/model_evaluation.yaml")
 deploy_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/build_updates_v2/pipelines/kfp_components/prediction/predict.yaml")
 
