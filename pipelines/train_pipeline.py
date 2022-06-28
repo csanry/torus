@@ -4,7 +4,7 @@ from typing import NamedTuple
 import google.cloud.aiplatform as aip
 from kfp.v2 import compiler, dsl
 from kfp.v2.dsl import Artifact, Dataset, Input, Output, OutputPath, component
-from sqlalchemy import outparam
+# from sqlalchemy import outparam
 
 import kfp
 
