@@ -23,7 +23,8 @@ steps:
 #   waitFor: ["Push Base Image"]
 
 - name: 'gcr.io/$PROJECT_ID/mle-fp/base:latest'
-  args: ['python3', 'train_pipeline.py']
+  entrypoint: 'python3'
+  args: ['pipelines/train_pipeline.py']
   timeout: 180s
   id: "Run Pipeline"
 #   waitFor: ["Make Tests"]
