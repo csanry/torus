@@ -26,4 +26,4 @@ steps:
   args: ['python3', 'train_pipeline.py']
   timeout: 180s
   id: "Run Pipeline"
-  waitFor: ["Make Tests"]
+#   waitFor: ["Make Tests"]
