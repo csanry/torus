@@ -14,7 +14,7 @@ PIPELINE_ROOT = "{}/pipeline/".format("gs://mle-dwh-torus")
 
 aip.init(project="pacific-torus-347809", staging_bucket="gs://mle-dwh-torus")
 
-ingest_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/main/pipelines/kfp_components/ingest/ingest_component.yaml")
+ingest_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/main/pipelines/kfp_components/ingest/bq_extract_data_component.yaml")
 tfdv_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/main/pipelines/kfp_components/preprocessing/tfdv_generate_statistics_component.yaml")
 
 tfdv_drift_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/main/pipelines/kfp_components/preprocessing/tfdv_detect_drift_component.yaml")
