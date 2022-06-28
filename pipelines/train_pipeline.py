@@ -4,25 +4,27 @@ from typing import NamedTuple
 import google.cloud.aiplatform as aip
 from kfp.v2 import compiler, dsl
 from kfp.v2.dsl import Artifact, Dataset, Input, Output, OutputPath, component
-# from sqlalchemy import outparam
 
 import kfp
+
+# from sqlalchemy import outparam
+
 
 PIPELINE_ROOT = "{}/pipeline/".format("gs://mle-dwh-torus")
 
 aip.init(project="pacific-torus-347809", staging_bucket="gs://mle-dwh-torus")
 
-ingest_op = kfp.components.load_component_from_file("./kfp_components/ingest/ingest_component.yaml")
-tfdv_op = kfp.components.load_component_from_file("./kfp_components/preprocessing/tfdv_generate_statistics_component.yaml")
+ingest_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/main/pipelines/kfp_components/ingest/ingest_component.yaml")
+tfdv_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/main/pipelines/kfp_components/preprocessing/tfdv_generate_statistics_component.yaml")
 
-tfdv_drift_op = kfp.components.load_component_from_file("./kfp_components/preprocessing/tfdv_detect_drift_component.yaml")
+tfdv_drift_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/main/pipelines/kfp_components/preprocessing/tfdv_detect_drift_component.yaml")
 
-basic_preprocessing_op = kfp.components.load_component_from_file("./kfp_components/preprocessing/basic_preprocessing_component.yaml")
-train_test_split_data_op = kfp.components.load_component_from_file("./kfp_components/training/train_test_split_data_component.yaml")
+basic_preprocessing_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/main/pipelines/kfp_components/preprocessing/basic_preprocessing_component.yaml")
+train_test_split_data_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/main/pipelines/kfp_components/training/train_test_split_data_component.yaml")
 
-train_tune_op = kfp.components.load_component_from_file("./kfp_components/training/train_hptune.yaml")
-model_evaluation_op = kfp.components.load_component_from_file("./kfp_components/training/model_evaluation.yaml")
-deploy_op = kfp.components.load_component_from_file("./kfp_components/prediction/predict.yaml")
+train_tune_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/main/pipelines/kfp_components/training/train_hptune.yaml")
+model_evaluation_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/main/pipelines/kfp_components/training/model_evaluation.yaml")
+deploy_op = kfp.components.load_component_from_url("https://raw.githubusercontent.com/csanry/torus/main/pipelines/kfp_components/prediction/predict.yaml")
 
 
 # Define the pipeline
@@ -65,7 +67,7 @@ def xgboost_test_pipeline(
     # of the training data set.
  
     tfdv_drift = tfdv_drift_op(
-        stats_older_path="gs://mle-dwh-torus/stats/evaltest.pb", 
+        stats_older_path="none", # "gs://mle-dwh-torus/stats/evaltest.pb", 
         stats_new_path=tfdv_step.outputs['stats_path'],
         target_feature="limit_bal"
     )
@@ -78,14 +80,14 @@ def xgboost_test_pipeline(
 
         train_tune = train_tune_op(
             train_file = train_test_split_data.outputs['train_data']
-        )
+        ).after(train_test_split_data)
 
         model_eval = model_evaluation_op(
             trained_model = train_tune.outputs['model_path'],
             train_auc = train_tune.outputs['train_auc'],
             test_set = train_test_split_data.outputs['test_data'],
             threshold = 0.6
-        )
+        ).after(train_tune)
 
         with dsl.Condition(model_eval.outputs['deploy'] == "True"):
             deploy = deploy_op(
@@ -106,24 +108,38 @@ def xgboost_test_pipeline(
                 )
 
 if __name__ == "__main__": 
-    from datetime import datetime
 
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/Users/christos/mitb-projects/CS611/pacific-torus-347809-106feaa3cc83.json"
-    id = datetime.now().strftime(f"%d%H%M")
+    import subprocess
+    from datetime import datetime 
+
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "../pacific-torus.json"
+    id = datetime.now().strftime(f"%Y%m%d-%H%M")
+
+
+    # ------------------------------------
+    # Compile the function into a pipeline 
+    # ------------------------------------
 
     compiler.Compiler().compile(
         pipeline_func=xgboost_test_pipeline,
-        pipeline_name="ccd-train-pipeline",
-        package_path="./test.json",
+        pipeline_name=f"ccd-train-pipeline-{id}",
+        package_path="./ccd-train-pipeline.json",
         type_check=True,
     )
 
+    # ----------------------------------
+    # Schedule and run a pipeline job 
+    # ----------------------------------
+    
     job = aip.PipelineJob(
-        display_name="testpipeline",
-        template_path="./test.json",
+        display_name=f"ccd-train-pipeline-{id}",
+        template_path="./ccd-train-pipeline.json",
         enable_caching=True,
-        job_id=f'rf-test-{id}',
+        job_id=f'ccd-train-pipeline-job-{id}',
         pipeline_root=PIPELINE_ROOT
     )
 
     job.run()
+
+    # remove files
+    subprocess.call(["rm", "-r", "ccd-train-pipeline.json"])
