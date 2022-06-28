@@ -108,7 +108,7 @@ def xgboost_test_pipeline(
 if __name__ == "__main__": 
     from datetime import datetime
 
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/Users/christos/mitb-projects/CS611/pacific-torus-347809-106feaa3cc83.json"
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "https://raw.githubusercontent.com/csanry/torus/build_updates_v2/data/pacific-torus.json"
     id = datetime.now().strftime(f"%d%H%M")
 
     compiler.Compiler().compile(
