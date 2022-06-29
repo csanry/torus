@@ -111,7 +111,7 @@ if __name__ == "__main__":
     import subprocess
     from datetime import datetime 
 
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/Users/christos/mitb-projects/CS611/pacific-torus-347809-106feaa3cc83.json"
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "../pacific-torus.json"
     id = datetime.now().strftime(f"%Y%m%d-%H%M")
 
 
