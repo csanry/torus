@@ -9,7 +9,6 @@ import kfp
 
 # from sqlalchemy import outparam
 
-
 PIPELINE_ROOT = "{}/pipeline/".format("gs://mle-dwh-torus")
 
 aip.init(project="pacific-torus-347809", staging_bucket="gs://mle-dwh-torus")
@@ -112,7 +111,7 @@ if __name__ == "__main__":
     import subprocess
     from datetime import datetime 
 
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "../pacific-torus.json"
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/Users/christos/mitb-projects/CS611/pacific-torus-347809-106feaa3cc83.json"
     id = datetime.now().strftime(f"%Y%m%d-%H%M")
 
 

@@ -89,7 +89,7 @@ def model_evaluation(
             return results(deploy, model_loc)
 
         else:
-            return results(deploy, None)
+            return results(deploy, "Challenger model failed")
 
 if __name__ == "__main__":
     
