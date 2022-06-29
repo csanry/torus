@@ -20,21 +20,21 @@ implementation:
       program_path=$(mktemp)
       printf "%s" "$0" > "$program_path"
       python3 -u "$program_path" "$@"
-    - "from kfp.v2.dsl import Artifact, Dataset, InputPath, OutputPath\n\ndef basic_preprocessing(\n\
-      \    input_file,\n    output_bucket,\n    output_file,\n): \n\n    from functools\
-      \ import reduce\n\n    import pandas as pd\n\n    df = pd.read_csv(input_file)\n\
-      \n    df.columns = [col.lower().rstrip('_') for col in df.columns] \n\n    df.dropna(inplace=True)\n\
-      \n    df['target'] = df['default'].apply(lambda x: 1 if x == True else 0)\n\
-      \    df.loc[df['education'] == '0', 'education'] = 'Unknown'\n    df.loc[df['marriage']\
-      \ == '0', 'marriage'] = 'Other'\n    sex = pd.get_dummies(df.sex, prefix='gender')\n\
-      \    education = pd.get_dummies(df.education, prefix='ed')\n    marriage = pd.get_dummies(df.marriage,\
-      \ prefix='mstatus')\n    frames = [df, sex, education, marriage]\n    final\
-      \ = reduce(lambda l, r: pd.concat([l, r], axis=1), frames)\n    final.drop(['id',\
-      \ 'default', 'sex', 'education', 'marriage'], axis = 1, inplace = True)\n\n\
-      \    output_path = f\"gs://mle-dwh-torus/{output_bucket}/{output_file}\" \n\
-      \    final.to_csv(output_path, index=False)\n\n    return output_path\n\ndef\
-      \ _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value, str):\n\
-      \        raise TypeError('Value \"{}\" has type \"{}\" instead of str.'.format(\n\
+    - "def basic_preprocessing(\n    input_file,\n    output_bucket,\n    output_file,\n\
+      ): \n\n    from functools import reduce\n\n    import pandas as pd\n\n    df\
+      \ = pd.read_csv(input_file)\n\n    df.columns = [col.lower().rstrip('_') for\
+      \ col in df.columns] \n    df.dropna(inplace=True)\n\n    df[\"target\"] = df[\"\
+      default\"].apply(lambda row: 1 if row else 0)\n\n    df.loc[df[\"education\"\
+      ] == \"0\", \"education\"] = \"Unknown\"\n    education = pd.get_dummies(df[\"\
+      education\"], prefix='ed')\n\n    df.loc[df[\"marriage\"] == \"0\", \"marriage\"\
+      ] = \"Other\"\n    marriage = pd.get_dummies(df[\"marriage\"], prefix='mstatus')\n\
+      \n    sex = pd.get_dummies(df[\"sex\"], prefix='gender')\n\n    frames = [df,\
+      \ sex, education, marriage]\n    final = reduce(lambda l, r: pd.concat([l, r],\
+      \ axis=1), frames)\n    final.drop(columns=['id', 'default', 'sex', 'education',\
+      \ 'marriage'], inplace=True)\n\n    output_path = f\"gs://mle-dwh-torus/{output_bucket}/{output_file}\"\
+      \ \n    final.to_csv(output_path, index=False)\n\n    return output_path\n\n\
+      def _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value,\
+      \ str):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of str.'.format(\n\
       \            str(str_value), str(type(str_value))))\n    return str_value\n\n\
       import argparse\n_parser = argparse.ArgumentParser(prog='Basic preprocessing',\
       \ description='')\n_parser.add_argument(\"--input-file\", dest=\"input_file\"\
