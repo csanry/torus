@@ -39,6 +39,7 @@ deploy_op = kfp.components.load_component_from_url(f"{URL_ROOT}/prediction/predi
 # -------------------
 # Pipeline definition
 # -------------------
+
 @dsl.pipeline(
    name=ML_PIPELINE_NAME, 
    description='Train pipeline for credit card defaults', 

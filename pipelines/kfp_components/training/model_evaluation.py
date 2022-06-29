@@ -89,11 +89,11 @@ def model_evaluation(
             return results(deploy, model_loc)
 
         else:
-            return results(deploy, None)
+            return results(deploy, "Challenger model failed")
 
 if __name__ == "__main__":
+    
     import kfp
-
     kfp.components.create_component_from_func(
         model_evaluation,
         output_component_file='model_evaluation.yaml',
