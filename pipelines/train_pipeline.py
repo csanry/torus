@@ -1,9 +1,11 @@
 import os
+from datetime import datetime
 from typing import NamedTuple
 
 import google.cloud.aiplatform as aip
 from kfp.v2 import compiler, dsl
 from kfp.v2.dsl import Artifact, Dataset, Input, Output, OutputPath, component
+from matplotlib import transforms
 
 import kfp
 
@@ -13,6 +15,7 @@ BUCKET_NAME = "mle-dwh-torus"
 PIPELINE_ROOT = f"gs://{BUCKET_NAME}/pipeline/"
 REGION = "us-central1"
 URL_ROOT = "https://raw.githubusercontent.com/csanry/torus/main/pipelines/kfp_components"
+YEAR_MONTH = datetime.now().strftime(f"%Y-%m")
 
 aip.init(project=PROJECT_ID, staging_bucket=BUCKET_NAME)
 
@@ -24,8 +27,10 @@ ingest_op = kfp.components.load_component_from_url(f"{URL_ROOT}/ingest/bq_extrac
 
 # preprocessing components 
 basic_preprocessing_op = kfp.components.load_component_from_url(f"{URL_ROOT}/preprocessing/basic_preprocessing_component.yaml")
-tfdv_op = kfp.components.load_component_from_url(f"{URL_ROOT}/preprocessing/tfdv_generate_statistics_component.yaml")
-tfdv_drift_op = kfp.components.load_component_from_url(f"{URL_ROOT}/preprocessing/tfdv_detect_drift_component.yaml")
+tfdv_generate_statistics_op = kfp.components.load_component_from_url(f"{URL_ROOT}/preprocessing/tfdv_generate_statistics_component.yaml")
+tfdv_detect_drift_op = kfp.components.load_component_from_url(f"{URL_ROOT}/preprocessing/tfdv_detect_drift_component.yaml")
+tfdv_visualise_statistics_op = kfp.components.load_component_from_url(f"{URL_ROOT}/preprocessing/tfdv_visualise_statistics_component.yaml")
+
 
 # training components 
 train_test_split_data_op = kfp.components.load_component_from_url(f"{URL_ROOT}/training/train_test_split_data_component.yaml")
@@ -52,7 +57,7 @@ def ccd_train_pipeline(
         source_table_url="dwh_pacific_torus.credit_card_defaults",
         destination_project_id=PROJECT_ID,
         destination_bucket=BUCKET_NAME,
-        destination_file="raw/new_ccd_test_02.csv",
+        destination_file="raw/credit-card-defaults-{}.csv",
         dataset_location="US",
         extract_job_config={},
     ) # .apply(gcp.use_gcp_secret('user-gcp-sa'))
@@ -60,10 +65,10 @@ def ccd_train_pipeline(
     basic_preprocessing = basic_preprocessing_op(
         input_file=ingest.outputs["dataset_gcs_uri"],
         output_bucket="int",
-        output_file="ccd2_int.csv"
+        output_file="credit-card-defaults.csv"
     )
 
-    tfdv_step = tfdv_op(
+    tfdv_generate_statistics_step = tfdv_generate_statistics_op(
         input_data=basic_preprocessing.output, # basic_preprocessing.output,
         output_path=f"gs://{BUCKET_NAME}/tfdv_expers/eval/evaltest.pb",
         job_name='test-1',
@@ -78,13 +83,19 @@ def ccd_train_pipeline(
     # compare generated training data stats with stats from a previous version
     # of the training data set.
  
-    tfdv_drift = tfdv_drift_op(
+    tfdv_detect_drift_step = tfdv_detect_drift_op(
         stats_older_path="none", # "gs://mle-dwh-torus/stats/evaltest.pb", 
-        stats_new_path=tfdv_step.outputs['stats_path'],
+        stats_new_path=tfdv_generate_statistics_step.outputs['stats_path'],
         target_feature="limit_bal"
-    )
+    ).after(tfdv_generate_statistics_step)
 
-    with dsl.Condition(tfdv_drift.outputs['drift']=='true'):
+    visualise_statistics_step = tfdv_visualise_statistics_op(
+        statistics_path=tfdv_generate_statistics_step.outputs["stats_path"],  
+        output_bucket=f"{BUCKET_NAME}/stats",
+        statistics_name="Month of July"
+    ).after(tfdv_generate_statistics_step)
+
+    with dsl.Condition(tfdv_detect_drift_step.outputs['drift']=='true'):
         train_test_split_data = train_test_split_data_op(
                 input_file=basic_preprocessing.output,
                 output_bucket="fin"
@@ -110,7 +121,7 @@ def ccd_train_pipeline(
                 region='REGION'
             )
             
-    with dsl.Condition(tfdv_drift.outputs["drift"]=="false"):
+    with dsl.Condition(tfdv_detect_drift_step.outputs["drift"]=="false"):
         deploy = deploy_op(
             # model_input_file = model_eval.outputs['evaluated_model'],
             model_input_file=f"gs://{BUCKET_NAME}/models/",
@@ -122,10 +133,9 @@ def ccd_train_pipeline(
 if __name__ == "__main__": 
 
     import subprocess
-    from datetime import datetime 
 
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "../pacific-torus.json"
-    ID = datetime.now().strftime(f"%Y%m%d-%H%M")
+    ID = datetime.now().strftime(f"%Y-%m-%d-%H%M")
 
 
     # ------------------------------------
