@@ -1,0 +1,51 @@
+name: Tfdv visualise statistics
+inputs:
+- {name: statistics_path, type: String}
+- {name: output_bucket, type: String, default: mle-dwh-torus/stats, optional: true}
+- {name: statistics_name, type: String, default: '', optional: true}
+- {name: older_statistics_name, type: String, default: '', optional: true}
+- {name: older_statistics_path, type: String, default: '', optional: true}
+outputs:
+- {name: output_view, type: HTML}
+implementation:
+  container:
+    image: gcr.io/pacific-torus-347809/mle-fp/preprocessing:v1
+    command:
+    - sh
+    - -c
+    - |2
+
+      if ! [ -x "$(command -v pip)" ]; then
+          python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip
+      fi
+
+      PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.9' && "$0" "$@"
+    - sh
+    - -ec
+    - |
+      program_path=$(mktemp -d)
+      printf "%s" "$0" > "$program_path/ephemeral_component.py"
+      python3 -m kfp.v2.components.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+    - "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing\
+      \ import *\n\ndef tfdv_visualise_statistics(\n    statistics_path: str,  \n\
+      \    output_view: Output[HTML],\n    output_bucket: str = \"mle-dwh-torus/stats\"\
+      ,\n    statistics_name: str = \"\",\n    older_statistics_name: str = \"\",\n\
+      \    older_statistics_path: str = \"\",\n) -> None:  \n\n    # import packages\n\
+      \    from datetime import datetime\n\n    import tensorflow_data_validation\
+      \ as tfdv\n    from tensorflow_data_validation.utils.display_util import \\\n\
+      \        get_statistics_html\n\n    # load stats from path\n    stats = tfdv.load_statistics(input_path=statistics_path)\n\
+      \    older_stats = None\n    if older_statistics_path:\n        older_stats\
+      \ = tfdv.load_statistics(input_path=older_statistics_path)\n\n    # create html\
+      \ file to statistics\n    html = get_statistics_html(\n        lhs_statistics=stats,\n\
+      \        lhs_name=statistics_name,\n        rhs_statistics=older_stats,\n  \
+      \      rhs_name=older_statistics_name,\n    )\n\n    # write html to output\
+      \ view\n    stats_id = datetime.now().strftime(f\"%Y-%m\")\n\n    file_path\
+      \ = f\"{output_bucket}/credit-card-default-stats-{stats_id}.html\"\n    if not\
+      \ file_path.startswith(\"gs://\"):\n        file_path = f\"gs://{file_path}\"\
+      \n    output_view.path = file_path\n\n    with open(output_view.path, \"w\"\
+      ) as file:\n        file.write(html)\n\n"
+    args:
+    - --executor_input
+    - {executorInput: null}
+    - --function_to_execute
+    - tfdv_visualise_statistics
