@@ -5,7 +5,6 @@ from typing import NamedTuple
 import google.cloud.aiplatform as aip
 from kfp.v2 import compiler, dsl
 from kfp.v2.dsl import Artifact, Dataset, Input, Output, OutputPath, component
-from matplotlib import transforms
 
 import kfp
 
@@ -16,7 +15,7 @@ PIPELINE_ROOT = f"gs://{BUCKET_NAME}/pipeline/"
 REGION = "us-central1"
 URL_ROOT = "https://raw.githubusercontent.com/csanry/torus/main/pipelines/kfp_components"
 YEAR_MONTH = datetime.now().strftime(f"%Y-%m")
-
+BASE_FILE_NAME = "credit-card-defaults"
 aip.init(project=PROJECT_ID, staging_bucket=BUCKET_NAME)
 
 # ----------------------------
@@ -52,48 +51,68 @@ deploy_op = kfp.components.load_component_from_url(f"{URL_ROOT}/prediction/predi
 )
 def ccd_train_pipeline(
 ):
-    ingest = ingest_op(
-        source_project_id=PROJECT_ID,
-        source_table_url="dwh_pacific_torus.credit_card_defaults",
-        destination_project_id=PROJECT_ID,
-        destination_bucket=BUCKET_NAME,
-        destination_file="raw/credit-card-defaults-{}.csv",
-        dataset_location="US",
-        extract_job_config={},
+
+    # ingestion steps
+    ingest_step = (
+        ingest_op(
+            source_project_id=PROJECT_ID,
+            source_table_url="dwh_pacific_torus.credit_card_defaults",
+            destination_project_id=PROJECT_ID,
+            destination_bucket=BUCKET_NAME,
+            destination_file=f"raw/{BASE_FILE_NAME}-{YEAR_MONTH}.csv",
+            dataset_location="US",
+            extract_job_config={},
+        )
+        .set_display_name("Extract data from BQ")
     ) # .apply(gcp.use_gcp_secret('user-gcp-sa'))
 
-    basic_preprocessing = basic_preprocessing_op(
-        input_file=ingest.outputs["dataset_gcs_uri"],
-        output_bucket="int",
-        output_file="credit-card-defaults.csv"
+    # preprocessing steps
+    basic_preprocessing = (
+        basic_preprocessing_op(
+            input_file=ingest_step.outputs["dataset_gcs_uri"],
+            output_bucket="int",
+            output_file=f"{BASE_FILE_NAME}-cleaned-{YEAR_MONTH}.csv"
+        )
+        .after(ingest_step)
+        .set_display_name("Basic preprocessing")
     )
 
-    tfdv_generate_statistics_step = tfdv_generate_statistics_op(
-        input_data=basic_preprocessing.output, # basic_preprocessing.output,
-        output_path=f"gs://{BUCKET_NAME}/tfdv_expers/eval/evaltest.pb",
-        job_name='test-1',
-        use_dataflow="False",
-        project_id=PROJECT_ID,
-        region=REGION, # asia-southeast1
-        gcs_temp_location=f"gs://{BUCKET_NAME}/tfdv_expers/tmp",
-        gcs_staging_location=f"gs://{BUCKET_NAME}/tfdv_expers",
-        whl_location="tensorflow_data_validation-0.26.0-cp37-cp37m-manylinux2010_x86_64.whl"
-    ).after(basic_preprocessing)
+
+    tfdv_generate_statistics_step = (
+        tfdv_generate_statistics_op(
+            input_data=basic_preprocessing.output, # basic_preprocessing.output,
+            output_path=f"gs://{BUCKET_NAME}/tfdv_expers/eval/evaltest.pb",
+            job_name='test-1',
+            use_dataflow="False",
+            project_id=PROJECT_ID,
+            region=REGION, # asia-southeast1
+            gcs_temp_location=f"gs://{BUCKET_NAME}/tfdv_expers/tmp",
+            gcs_staging_location=f"gs://{BUCKET_NAME}/tfdv_expers",
+            whl_location="tensorflow_data_validation-0.26.0-cp37-cp37m-manylinux2010_x86_64.whl"
+        )
+        .after(basic_preprocessing)
+        .set_display_name("Generate stats")
+    )
+
 
     # compare generated training data stats with stats from a previous version
-    # of the training data set.
- 
-    tfdv_detect_drift_step = tfdv_detect_drift_op(
-        stats_older_path="none", # "gs://mle-dwh-torus/stats/evaltest.pb", 
-        stats_new_path=tfdv_generate_statistics_step.outputs['stats_path'],
-        target_feature="limit_bal"
-    ).after(tfdv_generate_statistics_step)
+    # of the training data set
+    tfdv_detect_drift_step = (
+        tfdv_detect_drift_op(
+            stats_older_path="none", # "gs://mle-dwh-torus/stats/evaltest.pb", 
+            stats_new_path=tfdv_generate_statistics_step.outputs['stats_path'],
+            target_feature="limit_bal"
+        )
+        .after(tfdv_generate_statistics_step)
+        .set_display_name("Drift detection")
+    )
 
     visualise_statistics_step = tfdv_visualise_statistics_op(
         statistics_path=tfdv_generate_statistics_step.outputs["stats_path"],  
         output_bucket=f"{BUCKET_NAME}/stats",
         statistics_name="Month of July"
     ).after(tfdv_generate_statistics_step)
+
 
     with dsl.Condition(tfdv_detect_drift_step.outputs['drift']=='true'):
         train_test_split_data = train_test_split_data_op(
