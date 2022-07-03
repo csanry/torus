@@ -50,7 +50,7 @@ def train_hptune(
     train_auc = roc_auc_score(Y, y_prob)
 
     trained_model.metadata['framework'] = 'Random_Forest'
-    trained_model.metadata['parameters'] = best_params
+    trained_model.metadata['parameters'] = str(best_params)
     trained_model.metadata['train_auc'] = train_auc
 
     model_output_path = "gs://mle-dwh-torus/models/"
