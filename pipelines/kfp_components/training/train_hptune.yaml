@@ -2,6 +2,7 @@ name: Train hptune
 inputs:
 - {name: train_file, type: String}
 outputs:
+- {name: trained_model, type: Model}
 - {name: model_path, type: String}
 - {name: train_auc, type: Float}
 implementation:
@@ -10,21 +11,31 @@ implementation:
     command:
     - sh
     - -c
-    - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
-      'xgboost' 'gcsfs' 'sklearn' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip
-      install --quiet --no-warn-script-location 'xgboost' 'gcsfs' 'sklearn' --user)
-      && "$0" "$@"
+    - |2
+
+      if ! [ -x "$(command -v pip)" ]; then
+          python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip
+      fi
+
+      PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'xgboost' 'gcsfs' 'sklearn' 'kfp==1.8.12' && "$0" "$@"
     - sh
     - -ec
     - |
-      program_path=$(mktemp)
-      printf "%s" "$0" > "$program_path"
-      python3 -u "$program_path" "$@"
-    - |
+      program_path=$(mktemp -d)
+      printf "%s" "$0" > "$program_path/ephemeral_component.py"
+      python3 -m kfp.v2.components.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+    - |2+
+
+      import kfp
+      from kfp.v2 import dsl
+      from kfp.v2.dsl import *
+      from typing import *
+
       def train_hptune(
-              train_file,
-      ):
-          from xgboost import XGBClassifier
+              train_file: str,
+              trained_model: Output[Model]
+      ) -> NamedTuple("outputs", [("model_path", str), ('train_auc', float)]):
+
           from sklearn.model_selection import RandomizedSearchCV
           from sklearn.ensemble import RandomForestClassifier
           from sklearn.metrics import roc_auc_score
@@ -40,7 +51,6 @@ implementation:
               'n_estimators': [200, 300, 400],
           }
 
-          # XGB = XGBClassifier()
           PARAM_COMB = 2
 
           random_search = RandomizedSearchCV(RandomForestClassifier(),
@@ -55,15 +65,18 @@ implementation:
 
           best_params = random_search.best_params_
 
-          # xg_model = XGBClassifier(**best_params)
-          xg_model = RandomForestClassifier(**best_params)
+          rf_model = RandomForestClassifier(**best_params)
 
           X = train_df.drop(['target'], axis = 1)
           Y = train_df['target']
-          xg_model.fit(X, Y)
+          rf_model.fit(X, Y)
 
-          y_prob = xg_model.predict_proba(X)[:, 1]
+          y_prob = rf_model.predict_proba(X)[:, 1]
           train_auc = roc_auc_score(Y, y_prob)
+
+          trained_model.metadata['framework'] = 'Random_Forest'
+          trained_model.metadata['parameters'] = best_params
+          trained_model.metadata['train_auc'] = train_auc
 
           model_output_path = "gs://mle-dwh-torus/models/"
           model_id = datetime.now().strftime(f"%d%H%M")
@@ -71,7 +84,7 @@ implementation:
           local_path = model_filename
 
           with open(local_path, 'wb') as model_file:
-              pickle.dump(xg_model, model_file)
+              pickle.dump(rf_model, model_file)
 
           storage_path = os.path.join(model_output_path, model_filename)
           blob = storage.blob.Blob.from_string(storage_path, client = storage.Client())
@@ -81,46 +94,8 @@ implementation:
           results = namedtuple("outputs", ["model_path", "train_auc"])
           return results(storage_path, train_auc)
 
-      def _serialize_float(float_value: float) -> str:
-          if isinstance(float_value, str):
-              return float_value
-          if not isinstance(float_value, (float, int)):
-              raise TypeError('Value "{}" has type "{}" instead of float.'.format(
-                  str(float_value), str(type(float_value))))
-          return str(float_value)
-
-      def _serialize_str(str_value: str) -> str:
-          if not isinstance(str_value, str):
-              raise TypeError('Value "{}" has type "{}" instead of str.'.format(
-                  str(str_value), str(type(str_value))))
-          return str_value
-
-      import argparse
-      _parser = argparse.ArgumentParser(prog='Train hptune', description='')
-      _parser.add_argument("--train-file", dest="train_file", type=str, required=True, default=argparse.SUPPRESS)
-      _parser.add_argument("----output-paths", dest="_output_paths", type=str, nargs=2)
-      _parsed_args = vars(_parser.parse_args())
-      _output_files = _parsed_args.pop("_output_paths", [])
-
-      _outputs = train_hptune(**_parsed_args)
-
-      _output_serializers = [
-          _serialize_str,
-          _serialize_float,
-
-      ]
-
-      import os
-      for idx, output_file in enumerate(_output_files):
-          try:
-              os.makedirs(os.path.dirname(output_file))
-          except OSError:
-              pass
-          with open(output_file, 'w') as f:
-              f.write(_output_serializers[idx](_outputs[idx]))
     args:
-    - --train-file
-    - {inputValue: train_file}
-    - '----output-paths'
-    - {outputPath: model_path}
-    - {outputPath: train_auc}
+    - --executor_input
+    - {executorInput: null}
+    - --function_to_execute
+    - train_hptune

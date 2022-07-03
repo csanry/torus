@@ -1,13 +1,16 @@
 from importlib.metadata import metadata
 from typing import NamedTuple
 
-from kfp.components import InputPath, OutputPath
-from kfp.v2.dsl import Model
+from kfp.v2.dsl import component, Output, Model
 
+@component(output_component_file="train_hptune.yaml",
+        base_image="gcr.io/pacific-torus-347809/mle-fp/base:latest",
+        packages_to_install=["xgboost", "gcsfs", "sklearn"])
 def train_hptune(
         train_file: str,
+        trained_model: Output[Model],
 ) -> NamedTuple("outputs", [("model_path", str), ('train_auc', float)]):
-    from xgboost import XGBClassifier
+
     from sklearn.model_selection import RandomizedSearchCV
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.metrics import roc_auc_score
@@ -23,7 +26,6 @@ def train_hptune(
         'n_estimators': [200, 300, 400],
     }
 
-    # XGB = XGBClassifier()
     PARAM_COMB = 2
 
     random_search = RandomizedSearchCV(RandomForestClassifier(),
@@ -38,15 +40,18 @@ def train_hptune(
 
     best_params = random_search.best_params_
 
-    # xg_model = XGBClassifier(**best_params)
-    xg_model = RandomForestClassifier(**best_params)
+    rf_model = RandomForestClassifier(**best_params)
 
     X = train_df.drop(['target'], axis = 1)
     Y = train_df['target']
-    xg_model.fit(X, Y)
+    rf_model.fit(X, Y)
 
-    y_prob = xg_model.predict_proba(X)[:, 1]
+    y_prob = rf_model.predict_proba(X)[:, 1]
     train_auc = roc_auc_score(Y, y_prob)
+
+    trained_model.metadata['framework'] = 'Random_Forest'
+    trained_model.metadata['parameters'] = best_params
+    trained_model.metadata['train_auc'] = train_auc
 
     model_output_path = "gs://mle-dwh-torus/models/"
     model_id = datetime.now().strftime(f"%d%H%M")
@@ -54,7 +59,7 @@ def train_hptune(
     local_path = model_filename
 
     with open(local_path, 'wb') as model_file:
-        pickle.dump(xg_model, model_file)
+        pickle.dump(rf_model, model_file)
     
     storage_path = os.path.join(model_output_path, model_filename)
     blob = storage.blob.Blob.from_string(storage_path, client = storage.Client())
@@ -63,14 +68,3 @@ def train_hptune(
     from collections import namedtuple
     results = namedtuple("outputs", ["model_path", "train_auc"])
     return results(storage_path, train_auc)
-
-if __name__ == "__main__":
-    import kfp
-
-    kfp.components.func_to_container_op(
-        train_hptune,
-        # extra_code="from kfp.v2.dsl import Artifact, Dataset, InputPath, OutputPath",
-        output_component_file="train_hptune.yaml",
-        base_image="gcr.io/pacific-torus-347809/mle-fp/base:latest",
-        packages_to_install=["xgboost", "gcsfs", "sklearn"]
-    )

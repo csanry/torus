@@ -9,6 +9,7 @@ inputs:
   default: "False"
   optional: true
 outputs:
+- {name: model_test, type: ClassificationMetrics}
 - {name: deploy, type: String}
 - {name: evaluated_model, type: String}
 implementation:
@@ -17,30 +18,41 @@ implementation:
     command:
     - sh
     - -c
-    - (PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location
-      'pandas' 'gcsfs' 'fsspec' 'sklearn' 'xgboost' || PIP_DISABLE_PIP_VERSION_CHECK=1
-      python3 -m pip install --quiet --no-warn-script-location 'pandas' 'gcsfs' 'fsspec'
-      'sklearn' 'xgboost' --user) && "$0" "$@"
+    - |2
+
+      if ! [ -x "$(command -v pip)" ]; then
+          python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip
+      fi
+
+      PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'pandas' 'gcsfs' 'fsspec' 'sklearn' 'xgboost' 'kfp==1.8.12' && "$0" "$@"
     - sh
     - -ec
     - |
-      program_path=$(mktemp)
-      printf "%s" "$0" > "$program_path"
-      python3 -u "$program_path" "$@"
-    - "def model_evaluation(\n        trained_model,\n        train_auc,\n       \
-      \ test_set,\n        threshold,\n        deploy = 'False',\n):\n    from google.cloud\
+      program_path=$(mktemp -d)
+      printf "%s" "$0" > "$program_path/ephemeral_component.py"
+      python3 -m kfp.v2.components.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+    - "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing\
+      \ import *\n\ndef model_evaluation(\n        trained_model: str,\n        train_auc:\
+      \ float,\n        test_set: str,\n        model_test: Output[ClassificationMetrics],\n\
+      \        threshold: float,\n        deploy: str = 'False',\n) -> NamedTuple(\"\
+      outputs\", [('deploy', str), ('evaluated_model', str)]):\n    from google.cloud\
       \ import storage\n    import os\n    import pandas as pd\n    import pickle\n\
       \    import json\n    from sklearn.ensemble import RandomForestClassifier\n\
-      \    from sklearn.metrics import roc_auc_score, confusion_matrix\n\n    # Load\
-      \ Datasets and Models\n    data = pd.read_csv(test_set)\n    model = RandomForestClassifier()\n\
-      \n    model_bucket = trained_model.split(\"/\")[2]\n    object_name = \"/\"\
-      .join(trained_model.split(\"/\")[3:])\n\n    client = storage.Client()\n   \
-      \ bu = client.bucket(model_bucket)\n    b = bu.blob(object_name)\n    b.download_to_filename('model.pkl')\n\
-      \    model = pickle.load(open('model.pkl', 'rb'))\n\n    X = data.drop(['target'],\
-      \ axis=1)\n    Y = data['target']\n\n    y_prob = model.predict_proba(X)[:,\
-      \ 1]\n    y_pred = model.predict(X)\n    auc = roc_auc_score(Y, y_prob)\n\n\
-      \    model_info = {\n        'framework': 'RF',\n        'train_auc': train_auc,\n\
-      \        'test_auc': auc,\n        'confusion_matrix': {'classes': [0, 1], 'matrix':\
+      \    from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve\n\
+      \n    # Load Datasets and Models\n    data = pd.read_csv(test_set)\n    model\
+      \ = RandomForestClassifier()\n\n    model_bucket = trained_model.split(\"/\"\
+      )[2]\n    object_name = \"/\".join(trained_model.split(\"/\")[3:])\n\n    client\
+      \ = storage.Client()\n    bu = client.bucket(model_bucket)\n    b = bu.blob(object_name)\n\
+      \    b.download_to_filename('model.pkl')\n    model = pickle.load(open('model.pkl',\
+      \ 'rb'))\n\n    X = data.drop(['target'], axis=1)\n    Y = data['target']\n\n\
+      \    y_prob = model.predict_proba(X)[:, 1]\n    y_pred = model.predict(X)\n\
+      \    test_auc = roc_auc_score(Y, y_prob)\n    fpr, tpr, thresholds = roc_curve(Y,\
+      \ y_prob, pos_label=1)\n\n    # Add model performance metadata\n    model_test.metadata['test_auc']\
+      \ = test_auc\n    model_test.log_roc_curve(fpr.tolist(), tpr.tolist(), thresholds.tolist())\n\
+      \    model_test.log_confusion_matrix(['No Default', 'Default'], confusion_matrix(Y,\
+      \ y_pred).tolist())\n\n    # Also export in a json in the model path\n    model_info\
+      \ = {\n        'framework': 'RF',\n        'train_auc': train_auc,\n       \
+      \ 'test_auc': test_auc,\n        'confusion_matrix': {'classes': [0, 1], 'matrix':\
       \ confusion_matrix(Y, y_pred).tolist()}\n    }\n\n    # Make Checks Before Deployment\
       \ \n    # Check if a deployed model exists with associated information and make\
       \ performance comparisons\n\n    model_info_loc = \"gs://mle-dwh-torus/models/deployed/model_info.json\"\
@@ -57,45 +69,16 @@ implementation:
       \        model_blob = storage.blob.Blob.from_string(model_storage_path, client=storage.Client())\n\
       \        info_blob.upload_from_string(data=json.dumps(model_info), content_type='application/json')\n\
       \        model_blob.upload_from_filename('model.pkl')\n\n    if not info_exists\
-      \ and auc > threshold:\n        deploy = 'True'\n        set_params_upload()\n\
+      \ and test_auc > threshold:\n        deploy = 'True'\n        set_params_upload()\n\
       \        model_loc = \"gs://mle-dwh-torus/models/deployed/model.pkl\"\n    \
       \    return results(deploy, model_loc)\n\n    elif info_exists:\n        blob\
       \ = bucket.get_blob(file_name)\n        info = json.loads(blob.download_as_string())\n\
-      \n        if auc >= info['test_auc']:\n            deploy = 'True'\n       \
-      \     set_params_upload()\n            model_loc = \"gs://mle-dwh-torus/models/deployed/model.pkl\"\
+      \n        if test_auc >= info['test_auc']:\n            deploy = 'True'\n  \
+      \          set_params_upload()\n            model_loc = \"gs://mle-dwh-torus/models/deployed/model.pkl\"\
       \n            return results(deploy, model_loc)\n\n        else:\n         \
-      \   return results(deploy, \"Challenger model failed\")\n\ndef _serialize_str(str_value:\
-      \ str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value\
-      \ \"{}\" has type \"{}\" instead of str.'.format(\n            str(str_value),\
-      \ str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser =\
-      \ argparse.ArgumentParser(prog='Model evaluation', description='')\n_parser.add_argument(\"\
-      --trained-model\", dest=\"trained_model\", type=str, required=True, default=argparse.SUPPRESS)\n\
-      _parser.add_argument(\"--train-auc\", dest=\"train_auc\", type=float, required=True,\
-      \ default=argparse.SUPPRESS)\n_parser.add_argument(\"--test-set\", dest=\"test_set\"\
-      , type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"\
-      --threshold\", dest=\"threshold\", type=float, required=True, default=argparse.SUPPRESS)\n\
-      _parser.add_argument(\"--deploy\", dest=\"deploy\", type=str, required=False,\
-      \ default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\", dest=\"\
-      _output_paths\", type=str, nargs=2)\n_parsed_args = vars(_parser.parse_args())\n\
-      _output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = model_evaluation(**_parsed_args)\n\
-      \n_output_serializers = [\n    _serialize_str,\n    _serialize_str,\n\n]\n\n\
-      import os\nfor idx, output_file in enumerate(_output_files):\n    try:\n   \
-      \     os.makedirs(os.path.dirname(output_file))\n    except OSError:\n     \
-      \   pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+      \   return results(deploy, \"Challenger model failed\")\n\n"
     args:
-    - --trained-model
-    - {inputValue: trained_model}
-    - --train-auc
-    - {inputValue: train_auc}
-    - --test-set
-    - {inputValue: test_set}
-    - --threshold
-    - {inputValue: threshold}
-    - if:
-        cond: {isPresent: deploy}
-        then:
-        - --deploy
-        - {inputValue: deploy}
-    - '----output-paths'
-    - {outputPath: deploy}
-    - {outputPath: evaluated_model}
+    - --executor_input
+    - {executorInput: null}
+    - --function_to_execute
+    - model_evaluation

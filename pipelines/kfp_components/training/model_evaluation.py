@@ -1,22 +1,24 @@
 from typing import NamedTuple
-from kfp.components import InputPath, OutputPath
-from kfp.v2.dsl import Artifact, Model
+from kfp.v2.dsl import component, Output, ClassificationMetrics
 
-
+@component(base_image='gcr.io/pacific-torus-347809/mle-fp/base:latest',
+            packages_to_install=["pandas", "gcsfs", "fsspec", "sklearn", "xgboost"],
+            output_component_file='model_evaluation.yaml')
 def model_evaluation(
         trained_model: str,
         train_auc: float,
         test_set: str,
+        model_test: Output[ClassificationMetrics],
         threshold: float,
         deploy: str = 'False',
-) -> NamedTuple("Outputs", [('deploy', str), ('evaluated_model', str)]):
+) -> NamedTuple("outputs", [('deploy', str), ('evaluated_model', str)]):
     from google.cloud import storage
     import os
     import pandas as pd
     import pickle
     import json
     from sklearn.ensemble import RandomForestClassifier
-    from sklearn.metrics import roc_auc_score, confusion_matrix
+    from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve
 
     # Load Datasets and Models
     data = pd.read_csv(test_set)
@@ -36,12 +38,19 @@ def model_evaluation(
 
     y_prob = model.predict_proba(X)[:, 1]
     y_pred = model.predict(X)
-    auc = roc_auc_score(Y, y_prob)
+    test_auc = roc_auc_score(Y, y_prob)
+    fpr, tpr, thresholds = roc_curve(Y, y_prob, pos_label=1)
 
+    # Add model performance metadata
+    model_test.metadata['test_auc'] = test_auc
+    model_test.log_roc_curve(fpr.tolist(), tpr.tolist(), thresholds.tolist())
+    model_test.log_confusion_matrix(['No Default', 'Default'], confusion_matrix(Y, y_pred).tolist())
+    
+    # Also export in a json in the model path
     model_info = {
         'framework': 'RF',
         'train_auc': train_auc,
-        'test_auc': auc,
+        'test_auc': test_auc,
         'confusion_matrix': {'classes': [0, 1], 'matrix': confusion_matrix(Y, y_pred).tolist()}
     }
 
@@ -72,7 +81,7 @@ def model_evaluation(
         info_blob.upload_from_string(data=json.dumps(model_info), content_type='application/json')
         model_blob.upload_from_filename('model.pkl')
 
-    if not info_exists and auc > threshold:
+    if not info_exists and test_auc > threshold:
         deploy = 'True'
         set_params_upload()
         model_loc = "gs://mle-dwh-torus/models/deployed/model.pkl"
@@ -82,7 +91,7 @@ def model_evaluation(
         blob = bucket.get_blob(file_name)
         info = json.loads(blob.download_as_string())
 
-        if auc >= info['test_auc']:
+        if test_auc >= info['test_auc']:
             deploy = 'True'
             set_params_upload()
             model_loc = "gs://mle-dwh-torus/models/deployed/model.pkl"
@@ -90,12 +99,3 @@ def model_evaluation(
 
         else:
             return results(deploy, "Challenger model failed")
-
-if __name__ == "__main__":
-    
-    import kfp
-    kfp.components.create_component_from_func(
-        model_evaluation,
-        output_component_file='model_evaluation.yaml',
-        base_image='gcr.io/pacific-torus-347809/mle-fp/base:latest',
-        packages_to_install=["pandas", "gcsfs", "fsspec", "sklearn", "xgboost"])

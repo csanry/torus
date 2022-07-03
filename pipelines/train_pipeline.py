@@ -3,7 +3,7 @@ from typing import NamedTuple
 
 import google.cloud.aiplatform as aip
 from kfp.v2 import compiler, dsl
-from kfp.v2.dsl import Artifact, Dataset, Input, Output, OutputPath, component
+from kfp.v2.dsl import Artifact, Dataset, Input, Output, OutputPath, component # This is not used
 
 import kfp
 
@@ -32,7 +32,7 @@ deploy_op = kfp.components.load_component_from_url("https://raw.githubuserconten
    description='NIL', # to change 
    pipeline_root=PIPELINE_ROOT
 )
-def xgboost_test_pipeline(
+def ccd_pipeline(
 ):
     ingest = ingest_op(
         source_project_id="pacific-torus-347809",
@@ -120,7 +120,7 @@ if __name__ == "__main__":
     # ------------------------------------
 
     compiler.Compiler().compile(
-        pipeline_func=xgboost_test_pipeline,
+        pipeline_func=ccd_pipeline,
         pipeline_name=f"ccd-train-pipeline-{id}",
         package_path="./ccd-train-pipeline.json",
         type_check=True,
