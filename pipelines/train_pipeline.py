@@ -4,7 +4,6 @@ from typing import NamedTuple
 
 import google.cloud.aiplatform as aip
 from kfp.v2 import compiler, dsl
-from kfp.v2.dsl import Artifact, Dataset, Input, Output, OutputPath, component # This is not used
 
 import kfp
 
@@ -51,7 +50,8 @@ deploy_op = kfp.components.load_component_from_url(f"{URL_ROOT}/prediction/predi
 def ccd_train_pipeline(
 ):
 
-    # ingestion steps
+
+    # ingestion step
     ingest_step = (
         ingest_op(
             source_project_id=PROJECT_ID,
@@ -63,7 +63,7 @@ def ccd_train_pipeline(
             extract_job_config={},
         )
         .set_display_name("Extract data from BQ")
-    ) # .apply(gcp.use_gcp_secret('user-gcp-sa'))
+    ) 
 
     # preprocessing steps
     basic_preprocessing = (
@@ -106,47 +106,74 @@ def ccd_train_pipeline(
         .set_display_name("Drift detection")
     )
 
-    visualise_statistics_step = tfdv_visualise_statistics_op(
-        statistics_path=tfdv_generate_statistics_step.outputs["stats_path"],  
-        output_bucket=f"{BUCKET_NAME}/stats",
-        statistics_name="Month of July"
-    ).after(tfdv_generate_statistics_step)
+    visualise_statistics_step = (
+        tfdv_visualise_statistics_op(
+            statistics_path=tfdv_generate_statistics_step.outputs["stats_path"],  
+            output_bucket=f"{BUCKET_NAME}/stats",
+            statistics_name="Month of July"
+        )
+        .after(tfdv_generate_statistics_step)
+        .set_display_name("Visualise statistics")
+    )
 
-
-    with dsl.Condition(tfdv_detect_drift_step.outputs['drift']=='true'):
-        train_test_split_data = train_test_split_data_op(
+    # if drift is detect, run training components 
+    with dsl.Condition(tfdv_detect_drift_step.outputs['drift']=='true', name="drift-detected"):
+        
+        # train test split
+        train_test_split_data_step = (
+            train_test_split_data_op(
                 input_file=basic_preprocessing.output,
                 output_bucket="fin"
             )
+            .set_display_name("Train test split")
+        )
 
-        train_tune = train_tune_op(
-            train_file = train_test_split_data.outputs['train_data']
-        ).after(train_test_split_data)
-
-        model_eval = model_evaluation_op(
-            trained_model = train_tune.outputs['model_path'],
-            train_auc = train_tune.outputs['train_auc'],
-            test_set = train_test_split_data.outputs['test_data'],
-            threshold = 0.6
-        ).after(train_tune)
-
-        with dsl.Condition(model_eval.outputs['deploy'] == "True"):
-            deploy = deploy_op(
-                # model_input_file = model_eval.outputs['evaluated_model'],
-                model_input_file=f"gs://{BUCKET_NAME}/models/",
-                serving_container_image_uri="us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest",
-                project_id=PROJECT_ID,
-                region='REGION'
+        # train a challenger model
+        train_tune_step = (
+            train_tune_op(
+                train_file=train_test_split_data_step.outputs['train_data']
             )
-            
-    with dsl.Condition(tfdv_detect_drift_step.outputs["drift"]=="false"):
-        deploy = deploy_op(
+            .after(train_test_split_data_step)
+            .set_display_name("Hyperparameter tuning")
+        )
+
+        # compare against the champion model
+        model_eval_step = (
+            model_evaluation_op(
+                trained_model = train_tune_step.outputs['model_path'],
+                train_auc = train_tune_step.outputs['train_auc'],
+                test_set = train_test_split_data_step.outputs['test_data'],
+                threshold = 0.6
+            )
+            .after(train_tune_step)
+            .set_display_name("Evaluation of model")
+        )
+
+        # if challenger is better, deploy the challenger
+        with dsl.Condition(model_eval_step.outputs['deploy'] == "True", name="deploy-new-model"):
+            deploy_challenger = (
+                deploy_op(
+                    # model_input_file = model_eval.outputs['evaluated_model'],
+                    model_input_file=f"gs://{BUCKET_NAME}/models/",
+                    serving_container_image_uri="us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest",
+                    project_id=PROJECT_ID,
+                    region='REGION'
+                )
+                .set_display_name("Deploy the new model")
+            )
+        
+    with dsl.Condition(tfdv_detect_drift_step.outputs["drift"]=="false", name="no-drift-detected"):
+        deploy_champion = (
+            deploy_op(
             # model_input_file = model_eval.outputs['evaluated_model'],
             model_input_file=f"gs://{BUCKET_NAME}/models/",
             serving_container_image_uri="us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-0:latest",
             project_id=PROJECT_ID,
             region=REGION
             )
+            .set_display_name("Serve current model")
+        )
+
 
 if __name__ == "__main__": 
 
