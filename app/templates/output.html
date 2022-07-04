@@ -1,0 +1,19 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Prediction
+{% endblock %}
+
+{% block main %}
+    <h1 class="display-6">Prediction Outcome</h1>
+    <p class="lead">
+    Customer Default: <u>{{output}}</u>.
+    </p>
+    <form id="form2" class="form-horizontal" action="/predict" method="post">
+        <div class="form-group">
+            <div class="col-sm-offset-2 col-sm-10">
+                <button type="submit" class="btn btn-default">Back to Predictor</button>
+            </div>
+        </div>
+    </form>
+{% endblock %}
